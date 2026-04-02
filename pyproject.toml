@@ -13,3 +13,8 @@ authors = [{name = "Dekart XYZ"}]
 
 [project.scripts]
 giskill = "giskill.cli:main"
+
+[tool.hatch.build.targets.wheel]
+include = [
+  "/giskill/**",
+]
