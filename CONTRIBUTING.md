@@ -11,7 +11,14 @@ pip install -e .
 ## Test locally
 
 ```bash
-giskill
+python -m giskill.cli --help
+python -m giskill.cli install claude
+```
+
+After editable install, you can also use:
+
+```bash
+giskill install claude
 ```
 
 ## Publish
