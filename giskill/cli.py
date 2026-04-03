@@ -147,8 +147,11 @@ def emit_result(payload):
 
 def fail_json(mode, project_id, location, estimated_bytes, max_bytes, query_sql, message, next_steps):
     """Emit structured failure payload and return non-zero status code."""
+    # Print error prominently to stderr so it's visible even when JSON is truncated
+    print(f"ERROR: {message}", file=sys.stderr)
     emit_result(
         {
+            "error": message,
             "mode": mode,
             "status": "dry_run_only",
             "project_id": project_id or None,
@@ -158,7 +161,6 @@ def fail_json(mode, project_id, location, estimated_bytes, max_bytes, query_sql,
             "query_sql": query_sql,
             "result_preview": None,
             "next_steps": next_steps,
-            "error": message,
         }
     )
     return 1
