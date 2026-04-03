@@ -1,0 +1,15 @@
+{
+  "skill_name": "giskill",
+  "evals": [
+    {
+      "id": "london-boroughs",
+      "prompt": "give me sql for london boundries",
+      "assertions": [
+        "Agent used bq with --maximum_bytes_billed set.",
+        "Agent validated the query (dry run + row count check) before presenting the final answer.",
+        "Run query and ensure that the result is not empty.",
+        "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%)."
+      ]
+    }
+  ]
+}

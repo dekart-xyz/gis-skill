@@ -1,0 +1,42 @@
+{
+  "assertion_results": [
+    {
+      "assertion": "Agent used bq with --maximum_bytes_billed set.",
+      "passed": true,
+      "evidence": "Every bq call in the session included --maximum_bytes_billed=10737418240 (10 GiB).",
+      "commands_run": [],
+      "result_snippet": "All bq invocations included --maximum_bytes_billed=10737418240"
+    },
+    {
+      "assertion": "Agent validated the query (dry run + row count check) before presenting the final answer.",
+      "passed": true,
+      "evidence": "Dry run was executed (totalBytesProcessed: 704819628 returned) followed by COUNT(*) returning 33 rows, both before the final SQL was presented.",
+      "commands_run": [],
+      "result_snippet": "dry_run totalBytesProcessed=704819628; COUNT(*)=33"
+    },
+    {
+      "assertion": "Run query and ensure that the result is not empty.",
+      "passed": true,
+      "evidence": "COUNT(*) query returned 33 borough rows.",
+      "commands_run": [
+        "bq query ... SELECT COUNT(*) AS borough_count FROM london_boroughs"
+      ],
+      "result_snippet": "[{\"borough_count\":\"33\"}]"
+    },
+    {
+      "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
+      "passed": true,
+      "evidence": "ST_UNION_AGG + ST_AREA returned 1577.37 sq km. Reference is 1,572 sq km; 1577.37 is within +/-2% (range 1541\u20131604).",
+      "commands_run": [
+        "bq query ... SELECT ROUND(ST_AREA(ST_UNION_AGG(geometry)) / 1e6, 2) AS total_area_sq_km FROM london_boroughs"
+      ],
+      "result_snippet": "[{\"total_area_sq_km\":\"1577.37\"}]"
+    }
+  ],
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "pass_rate": 1.0
+  }
+}

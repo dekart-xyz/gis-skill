@@ -1,4 +1,4 @@
-# AGENTS.md instructions for /Users/vladi/dev/gis-skill
+# AGENTS.md instructions for gis-skill
 
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file.

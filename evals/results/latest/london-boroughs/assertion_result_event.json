@@ -1,0 +1,46 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 23036,
+  "duration_api_ms": 21252,
+  "num_turns": 3,
+  "result": "```json\n{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent used bq with --maximum_bytes_billed set.\",\n      \"passed\": true,\n      \"evidence\": \"Every bq call in the session included --maximum_bytes_billed=10737418240 (10 GiB).\",\n      \"commands_run\": [],\n      \"result_snippet\": \"All bq invocations included --maximum_bytes_billed=10737418240\"\n    },\n    {\n      \"assertion\": \"Agent validated the query (dry run + row count check) before presenting the final answer.\",\n      \"passed\": true,\n      \"evidence\": \"Dry run was executed (totalBytesProcessed: 704819628 returned) followed by COUNT(*) returning 33 rows, both before the final SQL was presented.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"dry_run totalBytesProcessed=704819628; COUNT(*)=33\"\n    },\n    {\n      \"assertion\": \"Run query and ensure that the result is not empty.\",\n      \"passed\": true,\n      \"evidence\": \"COUNT(*) query returned 33 borough rows.\",\n      \"commands_run\": [\"bq query ... SELECT COUNT(*) AS borough_count FROM london_boroughs\"],\n      \"result_snippet\": \"[{\\\"borough_count\\\":\\\"33\\\"}]\"\n    },\n    {\n      \"assertion\": \"Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).\",\n      \"passed\": true,\n      \"evidence\": \"ST_UNION_AGG + ST_AREA returned 1577.37 sq km. Reference is 1,572 sq km; 1577.37 is within +/-2% (range 1541\u20131604).\",\n      \"commands_run\": [\"bq query ... SELECT ROUND(ST_AREA(ST_UNION_AGG(geometry)) / 1e6, 2) AS total_area_sq_km FROM london_boroughs\"],\n      \"result_snippet\": \"[{\\\"total_area_sq_km\\\":\\\"1577.37\\\"}]\"\n    }\n  ],\n  \"summary\": {\"passed\": 4, \"failed\": 0, \"total\": 4, \"pass_rate\": 1.0}\n}\n```",
+  "stop_reason": "end_turn",
+  "session_id": "95c9623e-6c66-48cf-a2b3-0177d5eddb73",
+  "total_cost_usd": 0.12120764999999999,
+  "usage": {
+    "input_tokens": 3,
+    "cache_creation_input_tokens": 21027,
+    "cache_read_input_tokens": 41458,
+    "output_tokens": 1994,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 21027
+    },
+    "inference_geo": "",
+    "iterations": [],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-sonnet-4-6": {
+      "inputTokens": 3,
+      "outputTokens": 1994,
+      "cacheReadInputTokens": 41458,
+      "cacheCreationInputTokens": 21027,
+      "webSearchRequests": 0,
+      "costUSD": 0.12120764999999999,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "uuid": "7f78b78a-0c6f-4c75-8010-171c2afeb370"
+}

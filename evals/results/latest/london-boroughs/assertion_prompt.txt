@@ -1,0 +1,28 @@
+Now validate the assertions below for your previous answer in this same session.
+Rules:
+1. For EACH assertion, actively validate it.
+2. If validation requires data checks, run bq queries yourself.
+3. If you cannot validate an assertion, mark it passed=false.
+4. Output ONLY valid JSON.
+5. JSON format:
+{
+  "assertion_results": [
+    {
+      "assertion": "<string>",
+      "passed": true,
+      "evidence": "<short evidence>",
+      "commands_run": ["<command1>", "<command2>"],
+      "result_snippet": "<short stdout/result snippet>"
+    }
+  ],
+  "summary": {"passed": 0, "failed": 0, "total": 0, "pass_rate": 0.0}
+}
+
+Assertions:
+[
+  "Agent used bq with --maximum_bytes_billed set.",
+  "Agent validated the query (dry run + row count check) before presenting the final answer.",
+  "Run query and ensure that the result is not empty.",
+  "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%)."
+]
+
