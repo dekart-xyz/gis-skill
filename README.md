@@ -17,16 +17,8 @@ Canonical skill instructions are in:
 
 `giskill/SKILL.md`
 
-## Cost-Checked Query Command
+## How it works
 
-Run cost-aware BigQuery SQL directly from CLI:
+Once installed, Claude Code auto-discovers the skill and uses it to build cost-safe Overture Maps SQL for BigQuery. The skill guides Claude to call `bq` directly with dry-run budget checks, bbox scan gates, and ST_INTERSECTS for geographic correctness.
 
-```bash
-giskill query --query-file /path/to/query.sql --mode sql_only
-```
-
-Long command is also supported:
-
-```bash
-giskill run-cost-checked-query --query-file /path/to/query.sql --mode sql_only
-```
+Requires: [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) with `bq` CLI authenticated.

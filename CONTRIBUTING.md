@@ -13,14 +13,12 @@ pip install -e .
 ```bash
 python -m giskill --help
 python -m giskill install claude
-python -m giskill query --query "SELECT 1" --mode sql_only
 ```
 
 After editable install, you can also use:
 
 ```bash
 giskill install claude
-giskill query --query "SELECT 1" --mode sql_only
 ```
 
 ## Publish

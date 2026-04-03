@@ -8,7 +8,7 @@ argument-hint: [task-or-query]
 
 ## Required Workflow
 
-Follow these steps in order. Do NOT call `giskill query` until steps 1-3 are complete.
+Follow these steps in order. Do NOT write a final query until steps 1-3 are complete.
 
 ### Step 1: Discover schema
 
@@ -38,8 +38,6 @@ WHERE country = '<iso2>'
   AND LOWER(names.primary) LIKE '%<area_name>%'
 LIMIT 20;
 ```
-
-Use `--result-max-rows 50` if you need to see more rows.
 
 Extract the exact bbox constants from the result. Use the full precision values returned by the query, do not round or truncate them.
 
@@ -94,45 +92,32 @@ LIMIT 1000;
 
 Do NOT present the query to the user without validating it first.
 
-1. Run with `--mode sql_only` to check estimated bytes against budget.
-2. Run with `--mode execute` and a SQL `COUNT(*)` or `STRING_AGG` to confirm rows > 0 and inspect results. Do NOT use Python scripts for validation - use SQL only.
+1. Dry run: `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` to check estimated bytes.
+2. Validate: execute with `COUNT(*)` or small `LIMIT` to confirm rows > 0. Use SQL only, do NOT use Python for validation.
 3. If 0 rows: debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
-4. If dry run fails: read the `error` field in the JSON output carefully. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
+4. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
 
 ### Step 5: Iterate
 
-Fix issues in small steps. Do not run broad or full extraction queries unless explicitly requested. Do not use Python to post-process query results - all validation and inspection must be done in SQL.
+Fix issues in small steps. Do not run broad or full extraction queries unless explicitly requested. All validation must be done in SQL.
 
-## CLI Command
+## Running Queries
+
+Call `bq` directly. Always use standard SQL and enforce a budget:
 
 ```bash
-giskill query --query "SELECT ..." --mode sql_only
-giskill query --query-file /path/to/query.sql --mode execute
-giskill query --query "SELECT ..." --mode execute --result-max-rows 50
+# Dry run (check cost before executing)
+bq query --use_legacy_sql=false --dry_run --format=json --maximum_bytes_billed=10737418240 'SELECT ...'
+
+# Execute
+bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=50 'SELECT ...'
 ```
 
-The command handles:
-- `.env` loading from current working directory
-- `BQ_PROJECT_ID` fallback to `gcloud config get-value project`
-- `BQ_LOCATION` passthrough
-- `BQ_MAX_BYTES_BILLED` default `10737418240` (10 GiB)
-- Auth: `GOOGLE_APPLICATION_CREDENTIALS` or `BIGQUERY_CREDENTIALS_BASE64`
-- Mandatory dry run and budget gate before execution
-
-## Guardrails
-
+Guardrails:
 1. Always dry run before execution.
-2. Enforce `maximum_bytes_billed`.
-3. Prefer bounded SQL (bbox + date/limit + minimal columns).
-4. If estimated bytes exceed budget and no explicit override: do not execute.
-5. If over budget: provide at least one cheaper SQL variant.
-
-## Mode Behavior
-
-Infer mode from user intent unless explicitly stated.
-
-- **`sql_only`** (default): build SQL, dry run, return SQL + estimated bytes + pass/fail.
-- **`execute`**: build SQL, dry run, execute if within budget, return rows + SQL.
+2. Always include `--maximum_bytes_billed` (default 10 GiB = `10737418240`).
+3. If estimated bytes exceed budget: do not execute, provide a cheaper SQL variant.
+4. Prefer bounded SQL (bbox + date/limit + minimal columns).
 
 ## H3 Aggregation
 
@@ -157,17 +142,6 @@ Cost rules:
 ## Failure Handling
 
 - `bq` unavailable or auth fails: return exact fix commands only, no auto-install.
-- Over budget: set `status=blocked_over_budget`, do not execute, return cheaper variant.
-- Invalid query: return corrected SQL and rerun dry-run logic.
+- Over budget: do not execute, return cheaper variant.
+- Invalid query: return corrected SQL and rerun dry-run.
 - Never install software automatically. Report prerequisite commands for the user to run.
-
-## Output Contract
-
-Always return:
-- `mode`
-- `status` (`dry_run_only | executed | blocked_over_budget`)
-- `project_id`, `location`
-- `estimated_bytes`, `max_bytes_billed`
-- `query_sql`
-- `result_preview` (if executed)
-- `next_steps`
