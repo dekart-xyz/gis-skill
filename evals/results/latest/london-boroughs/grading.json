@@ -3,34 +3,34 @@
     {
       "assertion": "Agent used bq with --maximum_bytes_billed set.",
       "passed": true,
-      "evidence": "Every bq call in the session included --maximum_bytes_billed=10737418240 (10 GiB).",
+      "evidence": "All bq commands in the session included --maximum_bytes_billed=10737418240 (10 GiB). Verified across dry-run, COUNT, and final query calls.",
       "commands_run": [],
-      "result_snippet": "All bq invocations included --maximum_bytes_billed=10737418240"
+      "result_snippet": "Every bq call included: --maximum_bytes_billed=10737418240"
     },
     {
       "assertion": "Agent validated the query (dry run + row count check) before presenting the final answer.",
       "passed": true,
-      "evidence": "Dry run was executed (totalBytesProcessed: 704819628 returned) followed by COUNT(*) returning 33 rows, both before the final SQL was presented.",
+      "evidence": "Dry run was executed first (estimated 707,099,400 bytes), then a COUNT(*) query confirmed 33 rows before the final query was presented.",
       "commands_run": [],
-      "result_snippet": "dry_run totalBytesProcessed=704819628; COUNT(*)=33"
+      "result_snippet": "dry_run totalBytesProcessed=707099400; COUNT(*)=33"
     },
     {
       "assertion": "Run query and ensure that the result is not empty.",
       "passed": true,
-      "evidence": "COUNT(*) query returned 33 borough rows.",
+      "evidence": "Executed the final query with LIMIT 5; returned 5 rows with borough names and polygon geometries (Barking and Dagenham, Barnet, Bexley, Brent, Bromley).",
       "commands_run": [
-        "bq query ... SELECT COUNT(*) AS borough_count FROM london_boroughs"
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=5 'SELECT id, names.primary AS borough_name, geometry FROM `bigquery-public-data.overture_maps.division_area` WHERE country = 'GB' AND region = 'GB-ENG' AND subtype = 'county' AND class = 'land' AND bbox.xmax >= -0.5097 AND bbox.xmin <= 0.334 AND bbox.ymax >= 51.28 AND bbox.ymin <= 51.692 AND names.primary NOT IN ('Buckinghamshire','Essex','Hertfordshire','Kent','Surrey','Slough','Thurrock','Windsor and Maidenhead') ORDER BY borough_name LIMIT 5'"
       ],
-      "result_snippet": "[{\"borough_count\":\"33\"}]"
+      "result_snippet": "borough_name: Barking and Dagenham, Barnet, Bexley, Brent, Bromley \u2014 all with geometry polygons"
     },
     {
       "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
       "passed": true,
-      "evidence": "ST_UNION_AGG + ST_AREA returned 1577.37 sq km. Reference is 1,572 sq km; 1577.37 is within +/-2% (range 1541\u20131604).",
+      "evidence": "ST_AREA summed over all 33 borough geometries returned 1577.37 sq km. Expected range: 1545.0\u20131608.5 sq km. 1577.37 is within +/- 2% of 1577.",
       "commands_run": [
-        "bq query ... SELECT ROUND(ST_AREA(ST_UNION_AGG(geometry)) / 1e6, 2) AS total_area_sq_km FROM london_boroughs"
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=5 'SELECT ROUND(SUM(ST_AREA(geometry) / 1e6), 2) AS total_area_sq_km FROM `bigquery-public-data.overture_maps.division_area` WHERE country = 'GB' AND region = 'GB-ENG' AND subtype = 'county' AND class = 'land' AND bbox.xmax >= -0.5097 AND bbox.xmin <= 0.334 AND bbox.ymax >= 51.28 AND bbox.ymin <= 51.692 AND names.primary NOT IN ('Buckinghamshire','Essex','Hertfordshire','Kent','Surrey','Slough','Thurrock','Windsor and Maidenhead')'"
       ],
-      "result_snippet": "[{\"total_area_sq_km\":\"1577.37\"}]"
+      "result_snippet": "total_area_sq_km: 1577.37"
     }
   ],
   "summary": {

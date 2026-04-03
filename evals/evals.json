@@ -10,6 +10,13 @@
         "Run query and ensure that the result is not empty.",
         "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%)."
       ]
-    }
+    },
+      {
+        "id": "paris-boundaries",
+        "prompt": "give me sql for paris boundries",
+        "assertions": [
+          "Run query and ensure that the result is not empty and contains exactly 1 row."
+        ]
+      }
   ]
 }

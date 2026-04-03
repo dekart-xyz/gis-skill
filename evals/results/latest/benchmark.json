@@ -7,13 +7,20 @@
       "failed": 0,
       "total": 4,
       "pass_rate": 1.0
+    },
+    {
+      "id": "paris-boundaries",
+      "passed": 1,
+      "failed": 0,
+      "total": 1,
+      "pass_rate": 1.0
     }
   ],
   "summary": {
-    "passed_assertions": 4,
-    "total_assertions": 4,
+    "passed_assertions": 5,
+    "total_assertions": 5,
     "pass_rate": 1.0,
-    "avg_tokens_per_turn": 4234.0,
-    "avg_duration_ms_per_turn": 72592.5
+    "avg_tokens_per_turn": 2952.0,
+    "avg_duration_ms_per_turn": 65428.5
   }
 }

@@ -1,0 +1,46 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 49412,
+  "duration_api_ms": 40929,
+  "num_turns": 6,
+  "result": "Query validated - returns 1 row with the full Paris boundary polygon.\n\n---\n\nHere is the SQL for Paris boundaries:\n\n```sql\nSELECT\n  id,\n  subtype,\n  class,\n  names.primary AS name,\n  geometry\nFROM `bigquery-public-data.overture_maps.division_area`\nWHERE country = 'FR'\n  AND subtype = 'localadmin'\n  AND class = 'land'\n  AND LOWER(names.primary) = 'paris'\n  -- bbox overlap scan gate (partition pruning)\n  AND bbox.xmax >= 2.2241218090057373\n  AND bbox.xmin <= 2.4697604179382324\n  AND bbox.ymax >= 48.815574645996094\n  AND bbox.ymin <= 48.902156829833984\nLIMIT 1;\n```\n\n**What it returns:** The single `localadmin` polygon for Paris (city boundary), including the `geometry` column as a BigQuery `GEOGRAPHY` type \u2014 ready for `ST_INTERSECTS`, `ST_AREA`, or map rendering.\n\n**Notes:**\n- `subtype = 'localadmin'` is the authoritative administrative unit for the city of Paris.\n- To get the `county` or `locality` variant instead, swap the subtype value \u2014 all three share the same bbox and geometry in this dataset.\n- Estimated scan: ~663 MB (under 10 GiB budget).",
+  "stop_reason": "end_turn",
+  "session_id": "8ea68026-acda-40cd-bda4-1ba3c6130c5d",
+  "total_cost_usd": 0.13552785,
+  "usage": {
+    "input_tokens": 7,
+    "cache_creation_input_tokens": 20987,
+    "cache_read_input_tokens": 77652,
+    "output_tokens": 2234,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 20987
+    },
+    "inference_geo": "",
+    "iterations": [],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-sonnet-4-6": {
+      "inputTokens": 7,
+      "outputTokens": 2234,
+      "cacheReadInputTokens": 77652,
+      "cacheCreationInputTokens": 20987,
+      "webSearchRequests": 0,
+      "costUSD": 0.13552785,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "uuid": "856e9719-d1b5-4153-988f-3585c357bf4f"
+}

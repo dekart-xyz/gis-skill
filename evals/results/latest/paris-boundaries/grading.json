@@ -1,0 +1,19 @@
+{
+  "assertion_results": [
+    {
+      "assertion": "Run query and ensure that the result is not empty and contains exactly 1 row.",
+      "passed": true,
+      "evidence": "COUNT(*) returned 1 for the Paris localadmin boundary query against bigquery-public-data.overture_maps.division_area with all filters applied.",
+      "commands_run": [
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=10 'SELECT COUNT(*) AS row_count FROM `bigquery-public-data.overture_maps.division_area` WHERE country = \\'FR\\' AND subtype = \\'localadmin\\' AND class = \\'land\\' AND LOWER(names.primary) = \\'paris\\' AND bbox.xmax >= 2.2241218090057373 AND bbox.xmin <= 2.4697604179382324 AND bbox.ymax >= 48.815574645996094 AND bbox.ymin <= 48.902156829833984'"
+      ],
+      "result_snippet": "[{\"row_count\":\"1\"}]"
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  }
+}

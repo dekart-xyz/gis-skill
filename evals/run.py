@@ -22,6 +22,11 @@ def parse_args():
     parser.add_argument("--claude-bin", default="claude", help="Claude CLI binary.")
     parser.add_argument("--model", default="", help="Optional model override.")
     parser.add_argument(
+        "--case",
+        default="",
+        help="Run only one case by id from evals.json.",
+    )
+    parser.add_argument(
         "--permission-mode",
         default="bypassPermissions",
         choices=["default", "acceptEdits", "auto", "bypassPermissions", "dontAsk", "plan"],
@@ -36,6 +41,11 @@ def parse_args():
         "--safe-mode",
         action="store_true",
         help="Do not pass --dangerously-skip-permissions.",
+    )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Delete output directory before run.",
     )
     return parser.parse_args()
 
@@ -232,6 +242,41 @@ def build_assertion_prompt(assertions):
     )
 
 
+def collect_benchmark_from_disk(out_dir):
+    """Aggregate benchmark summary from all case grading.json files on disk."""
+    case_summaries = []
+    total_assertions = 0
+    total_passed = 0
+
+    for case_dir in sorted(p for p in out_dir.iterdir() if p.is_dir()):
+        grading_path = case_dir / "grading.json"
+        if not grading_path.exists():
+            continue
+        try:
+            grading = json.loads(grading_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        summary = grading.get("summary", {})
+        passed = int(summary.get("passed", 0))
+        total = int(summary.get("total", 0))
+        failed = int(summary.get("failed", max(total - passed, 0)))
+        pass_rate = float(summary.get("pass_rate", (passed / total) if total else 0.0))
+
+        case_summaries.append(
+            {
+                "id": case_dir.name,
+                "passed": passed,
+                "failed": failed,
+                "total": total,
+                "pass_rate": pass_rate,
+            }
+        )
+        total_assertions += total
+        total_passed += passed
+
+    return case_summaries, total_passed, total_assertions
+
+
 def main():
     """Run eval suite and write artifacts."""
     args = parse_args()
@@ -247,18 +292,20 @@ def main():
 
     log("[2/5] Loading eval definitions...")
     skill_name, cases = load_evals(evals_path)
+    if args.case:
+        cases = [c for c in cases if c.get("id") == args.case]
+        if not cases:
+            print(f"Case not found: {args.case}", file=sys.stderr)
+            return 2
     log(f"  -> Skill: {skill_name}")
     log(f"  -> Cases: {len(cases)}")
 
     log("[3/5] Preparing output directory...")
-    if out_dir.exists():
+    if args.clean and out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     log(f"  -> Output: {out_dir}")
 
-    total_assertions = 0
-    total_passed = 0
-    case_summaries = []
     total_tokens = []
     durations_ms = []
 
@@ -266,6 +313,8 @@ def main():
     for case in cases:
         case_id = case["id"]
         case_dir = out_dir / case_id
+        if case_dir.exists():
+            shutil.rmtree(case_dir)
         case_dir.mkdir(parents=True, exist_ok=True)
 
         log(f"- Case: {case_id}")
@@ -329,10 +378,6 @@ def main():
             f"(pass_rate={summary['pass_rate']:.2f})"
         )
 
-        total_assertions += summary["total"]
-        total_passed += summary["passed"]
-        case_summaries.append({"id": case_id, **summary})
-
         # Cost/time accounting from both generation and grading turns
         for result_event in (gen_result, grade_result):
             usage = result_event.get("usage", {})
@@ -343,6 +388,8 @@ def main():
             duration_ms = result_event.get("duration_ms")
             if isinstance(duration_ms, int):
                 durations_ms.append(duration_ms)
+
+    case_summaries, total_passed, total_assertions = collect_benchmark_from_disk(out_dir)
 
     benchmark = {
         "skill_name": skill_name,
