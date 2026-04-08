@@ -42,3 +42,18 @@ Behavior:
 - If no URL is configured, default is `https://cloud.dekart.xyz`
 - Self-hosted users should set their own instance URL
 - Local development should use `http://localhost:3000`
+
+## Dekart CLI authorization
+
+Authorize this CLI against configured Dekart instance:
+
+```bash
+giskill dekart init
+```
+
+Flow:
+
+- CLI registers a device session at `/api/v1/device`
+- Browser opens `/device/authorize?device_id=...`
+- After login and authorization, CLI polls `/api/v1/device/token`
+- JWT is saved to `~/.config/giskill/token.json`
