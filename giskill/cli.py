@@ -41,6 +41,55 @@ def build_parser():
         action="store_true",
         help="Print authorization URL without opening browser automatically.",
     )
+    dekart_tools = dekart_subparsers.add_parser("tools", help="List MCP tools from configured Dekart.")
+    dekart_tools.add_argument(
+        "--json",
+        action="store_true",
+        help="Print raw JSON payload.",
+    )
+    dekart_call = dekart_subparsers.add_parser("call", help="Call Dekart MCP tool.")
+    dekart_call.add_argument("--name", required=True, help="MCP tool name.")
+    dekart_call.add_argument(
+        "--args",
+        default="{}",
+        help="Tool arguments as JSON object string.",
+    )
+    dekart_call.add_argument(
+        "--json",
+        action="store_true",
+        help="Print raw JSON payload.",
+    )
+    dekart_upload = dekart_subparsers.add_parser(
+        "upload-parts",
+        help="Upload local file bytes with MCP-provided multipart part endpoint and headers.",
+    )
+    dekart_upload.add_argument("--file", required=True, help="Local file path to upload.")
+    dekart_upload.add_argument(
+        "--start-response-json",
+        help="JSON string from start_file_upload_session (either full MCP response or result object).",
+    )
+    dekart_upload.add_argument(
+        "--start-response-file",
+        help="Path to JSON file from start_file_upload_session.",
+    )
+    dekart_upload.add_argument(
+        "--upload-part-endpoint",
+        help="Part endpoint template (for example /api/v1/file/.../parts/{part_number}).",
+    )
+    dekart_upload.add_argument(
+        "--required-headers-json",
+        help='JSON list with headers, for example \'[{"key":"x-header","value":"v"}]\'.',
+    )
+    dekart_upload.add_argument(
+        "--max-part-size",
+        type=int,
+        help="Max bytes per part. If omitted, uses value from start response.",
+    )
+    dekart_upload.add_argument(
+        "--json",
+        action="store_true",
+        help="Print raw JSON payload.",
+    )
 
     return parser
 
@@ -154,6 +203,20 @@ def post_json(url, payload, timeout_seconds=15):
         return json.loads(body)
 
 
+def read_json(url, headers=None, timeout_seconds=15):
+    """Send JSON GET request and return decoded JSON response."""
+    request = urllib.request.Request(
+        url=url,
+        headers=headers or {},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        body = response.read().decode("utf-8")
+        if not body.strip():
+            return {}
+        return json.loads(body)
+
+
 def save_token(token_path, dekart_url, token_payload):
     """Persist authorized Dekart token payload for future CLI operations."""
     expires_in = int(token_payload.get("expires_in", 0) or 0)
@@ -190,6 +253,282 @@ def save_token(token_path, dekart_url, token_payload):
     finally:
         if tmp_name and os.path.exists(tmp_name):
             os.unlink(tmp_name)
+
+
+def load_token(token_path):
+    """Load saved token payload for authenticated Dekart API requests."""
+    if not token_path.exists():
+        return {}
+    try:
+        payload = json.loads(token_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def get_auth_headers():
+    """Build Authorization headers from locally saved device token."""
+    token_path = get_token_path()
+    payload = load_token(token_path)
+    token = str(payload.get("token", "")).strip()
+    if not token:
+        return None
+    return {"Authorization": f"Bearer {token}"}
+
+
+def pretty_print_json(payload):
+    """Print stable JSON for CLI output."""
+    print(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def parse_int(value, default=0):
+    """Convert protobuf/json numeric field to int with safe fallback."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def mcp_call(name, args, timeout_seconds=30):
+    """Call one MCP tool and return parsed response payload."""
+    dekart_url = get_dekart_url().rstrip("/")
+    endpoint = f"{dekart_url}/api/v1/mcp/call"
+    headers = {"Content-Type": "application/json"}
+    auth_headers = get_auth_headers()
+    if auth_headers:
+        headers.update(auth_headers)
+
+    request_body = json.dumps({"name": name, "arguments": args}).encode("utf-8")
+    request = urllib.request.Request(url=endpoint, data=request_body, headers=headers, method="POST")
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body) if body.strip() else {}
+
+
+def parse_upload_start_payload(start_response_json, start_response_file):
+    """Parse start_file_upload_session JSON and return normalized result object."""
+    raw_payload = None
+    if start_response_json:
+        raw_payload = start_response_json
+    elif start_response_file:
+        try:
+            raw_payload = Path(start_response_file).read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ValueError(f"Failed to read --start-response-file: {exc}") from exc
+    if raw_payload is None:
+        return {}
+    try:
+        parsed = json.loads(raw_payload)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid start response JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("Start response JSON must be an object.")
+    result = parsed.get("result")
+    if isinstance(result, dict):
+        return result
+    return parsed
+
+
+def upload_part_binary(put_url, body_bytes, required_headers):
+    """Upload one multipart chunk to Dekart part endpoint and return JSON manifest item."""
+    headers = {"Content-Type": "application/octet-stream", "Content-Length": str(len(body_bytes))}
+    auth_headers = get_auth_headers()
+    if auth_headers:
+        headers.update(auth_headers)
+    for item in required_headers or []:
+        key = str(item.get("key", "")).strip()
+        value = str(item.get("value", ""))
+        if key:
+            headers[key] = value
+
+    request = urllib.request.Request(url=put_url, data=body_bytes, headers=headers, method="PUT")
+    with urllib.request.urlopen(request, timeout=120) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body) if body.strip() else {}
+
+
+def parse_required_headers(required_headers_json):
+    """Parse headers JSON into MCP-compatible key/value list."""
+    if not required_headers_json:
+        return []
+    try:
+        parsed = json.loads(required_headers_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid --required-headers-json: {exc}") from exc
+    if not isinstance(parsed, list):
+        raise ValueError("--required-headers-json must be a JSON array.")
+    headers = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ValueError("--required-headers-json items must be objects with key/value.")
+        key = str(item.get("key", "")).strip()
+        value = str(item.get("value", ""))
+        if key:
+            headers.append({"key": key, "value": value})
+    return headers
+
+
+def build_put_url(dekart_url, endpoint_template, part_number, part_size):
+    """Build part upload URL from endpoint template and current part metadata."""
+    if "{part_number}" not in endpoint_template:
+        raise ValueError("upload_part_endpoint must include {part_number}.")
+    endpoint = endpoint_template.replace("{part_number}", str(part_number))
+    base_url = endpoint if endpoint.startswith("http://") or endpoint.startswith("https://") else f"{dekart_url}{endpoint}"
+    separator = "&" if "?" in base_url else "?"
+    return f"{base_url}{separator}part_size={part_size}"
+
+
+def handle_dekart_tools(raw_json):
+    """Fetch MCP tool catalog from configured Dekart instance."""
+    dekart_url = get_dekart_url().rstrip("/")
+    endpoint = f"{dekart_url}/api/v1/mcp/tools"
+    headers = get_auth_headers()
+    try:
+        payload = read_json(endpoint, headers=headers)
+    except urllib.error.HTTPError as exc:
+        print(f"MCP tools request failed ({exc.code}): {exc.reason}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"MCP tools request failed: {exc}", file=sys.stderr)
+        return 1
+
+    if raw_json:
+        pretty_print_json(payload)
+        return 0
+
+    tools = payload.get("tools", [])
+    if not isinstance(tools, list):
+        print("Invalid MCP tools response.", file=sys.stderr)
+        return 1
+    print(f"MCP tools: {len(tools)}")
+    for item in tools:
+        name = str(item.get("name", "")).strip()
+        description = str(item.get("description", "")).strip()
+        if name:
+            if description:
+                print(f"- {name}: {description}")
+            else:
+                print(f"- {name}")
+    return 0
+
+
+def handle_dekart_call(name, args_json, raw_json):
+    """Call one MCP tool using dynamic tool name and JSON arguments."""
+    try:
+        parsed_args = json.loads(args_json)
+    except json.JSONDecodeError as exc:
+        print(f"Invalid --args JSON: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(parsed_args, dict):
+        print("Invalid --args JSON: must be an object.", file=sys.stderr)
+        return 2
+
+    try:
+        payload = mcp_call(name, parsed_args, timeout_seconds=30)
+    except urllib.error.HTTPError as exc:
+        print(f"MCP call failed ({exc.code}): {exc.reason}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"MCP call failed: {exc}", file=sys.stderr)
+        return 1
+
+    if raw_json:
+        pretty_print_json(payload)
+        return 0
+
+    result = payload.get("result", {})
+    pretty_print_json(result)
+    return 0
+
+
+def handle_dekart_upload_parts(
+    file_path,
+    start_response_json,
+    start_response_file,
+    upload_part_endpoint,
+    required_headers_json,
+    max_part_size,
+    raw_json,
+):
+    """Upload local file chunks using start session metadata prepared by MCP."""
+    local_file = Path(file_path)
+    if not local_file.exists() or not local_file.is_file():
+        print(f"File not found: {local_file}", file=sys.stderr)
+        return 2
+    file_size = local_file.stat().st_size
+    if file_size <= 0:
+        print("File is empty.", file=sys.stderr)
+        return 2
+
+    try:
+        start_result = parse_upload_start_payload(start_response_json, start_response_file)
+        resolved_endpoint = (upload_part_endpoint or str(start_result.get("upload_part_endpoint", ""))).strip()
+        if not resolved_endpoint:
+            print("Missing upload part endpoint. Provide --upload-part-endpoint or start response JSON/file.", file=sys.stderr)
+            return 2
+        resolved_max_part_size = max_part_size if max_part_size and max_part_size > 0 else parse_int(start_result.get("max_part_size"), 0)
+        if resolved_max_part_size <= 0:
+            print("Missing max part size. Provide --max-part-size or start response JSON/file.", file=sys.stderr)
+            return 2
+        if required_headers_json:
+            required_headers = parse_required_headers(required_headers_json)
+        else:
+            required_headers = start_result.get("required_headers", [])
+            if not isinstance(required_headers, list):
+                required_headers = []
+        upload_session_id = str(start_result.get("upload_session_id", "")).strip()
+        file_id = str(start_result.get("file_id", "")).strip()
+        dekart_url = get_dekart_url().rstrip("/")
+
+        parts = []
+        part_number = 1
+        with local_file.open("rb") as source:
+            while True:
+                chunk = source.read(resolved_max_part_size)
+                if not chunk:
+                    break
+                put_url = build_put_url(dekart_url, resolved_endpoint, part_number, len(chunk))
+                part_response = upload_part_binary(put_url, chunk, required_headers)
+                parts.append(
+                    {
+                        "part_number": parse_int(part_response.get("part_number"), part_number),
+                        "etag": str(part_response.get("etag", "")),
+                        "size": parse_int(part_response.get("size"), len(chunk)),
+                    }
+                )
+                part_number += 1
+
+        complete_args = {"parts": parts, "total_size": file_size}
+        if upload_session_id:
+            complete_args["upload_session_id"] = upload_session_id
+        if file_id:
+            complete_args["file_id"] = file_id
+
+        payload = {
+            "parts": parts,
+            "parts_uploaded": len(parts),
+            "total_size": file_size,
+            "max_part_size": resolved_max_part_size,
+            "upload_session_id": upload_session_id,
+            "file_id": file_id,
+            "complete_args": complete_args,
+        }
+        if raw_json:
+            pretty_print_json(payload)
+        else:
+            print(f"Uploaded parts: {len(parts)}")
+            print(f"Total size: {file_size} bytes")
+            pretty_print_json(payload.get("complete_args", {}))
+        return 0
+    except ValueError as exc:
+        print(f"Invalid upload arguments: {exc}", file=sys.stderr)
+        return 2
+    except urllib.error.HTTPError as exc:
+        print(f"Upload part request failed ({exc.code}): {exc.reason}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"Upload failed: {exc}", file=sys.stderr)
+        return 1
 
 # build_device_name returns concise local machine label for Dekart device session records.
 def build_device_name():
@@ -282,6 +621,22 @@ def main():
             raise SystemExit(handle_dekart_config(args.url))
         if args.dekart_command == "init":
             raise SystemExit(handle_dekart_init(args.no_browser))
+        if args.dekart_command == "tools":
+            raise SystemExit(handle_dekart_tools(args.json))
+        if args.dekart_command == "call":
+            raise SystemExit(handle_dekart_call(args.name, args.args, args.json))
+        if args.dekart_command == "upload-parts":
+            raise SystemExit(
+                handle_dekart_upload_parts(
+                    file_path=args.file,
+                    start_response_json=args.start_response_json,
+                    start_response_file=args.start_response_file,
+                    upload_part_endpoint=args.upload_part_endpoint,
+                    required_headers_json=args.required_headers_json,
+                    max_part_size=args.max_part_size,
+                    raw_json=args.json,
+                )
+            )
         parser.error("Missing dekart subcommand. Try: giskill dekart config --url <url>")
         return
 
