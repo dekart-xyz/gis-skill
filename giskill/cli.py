@@ -1,8 +1,11 @@
 import argparse
 import datetime as dt
 import json
+import mimetypes
 import os
 import platform
+import shutil
+import subprocess
 import tempfile
 import time
 import sys
@@ -59,6 +62,14 @@ def build_parser():
         action="store_true",
         help="Print raw JSON payload.",
     )
+    dekart_call.add_argument(
+        "--extract",
+        help="Extract one scalar field from full response JSON path, for example: result.report.id",
+    )
+    dekart_call.add_argument(
+        "--out",
+        help="Write command output to file path instead of stdout.",
+    )
     dekart_upload = dekart_subparsers.add_parser(
         "upload-parts",
         help="Upload local file bytes with MCP-provided multipart part endpoint and headers.",
@@ -86,16 +97,59 @@ def build_parser():
         help="Max bytes per part. If omitted, uses value from start response.",
     )
     dekart_upload.add_argument(
+        "--file-id",
+        help="File id override. Use when start response does not include file_id.",
+    )
+    dekart_upload.add_argument(
+        "--complete-args-out",
+        help="Write ready JSON args for complete_file_upload_session to this file path.",
+    )
+    dekart_upload.add_argument(
         "--json",
         action="store_true",
         help="Print raw JSON payload.",
+    )
+    dekart_upload_file = dekart_subparsers.add_parser(
+        "upload-file",
+        help="Start upload session, upload parts, and complete in one command.",
+    )
+    dekart_upload_file.add_argument("--file", required=True, help="Local file path to upload.")
+    dekart_upload_file.add_argument("--file-id", required=True, help="Dekart file_id created via MCP create_file.")
+    dekart_upload_file.add_argument(
+        "--name",
+        help="Uploaded file name metadata. Defaults to local file basename.",
+    )
+    dekart_upload_file.add_argument(
+        "--mime-type",
+        help="Uploaded file MIME type. Defaults to inferred type or application/octet-stream.",
+    )
+    dekart_upload_file.add_argument(
+        "--max-part-size",
+        type=int,
+        help="Optional max part size override. If omitted, uses start response value.",
+    )
+    dekart_upload_file.add_argument(
+        "--json",
+        action="store_true",
+        help="Print raw JSON payload.",
+    )
+    dekart_upload_file.add_argument(
+        "--out",
+        help="Write JSON payload to file path instead of stdout.",
     )
 
     return parser
 
 
+def render_skill_template(skill_template, bq_path):
+    """Render SKILL.md template with resolved absolute bq binary path."""
+    # why: SKILL.md already wraps {bq_path} with double quotes in command examples.
+    # Adding shlex.quote here would create nested quotes and break execution.
+    return skill_template.replace("{bq_path}", bq_path)
+
+
 def install_claude_skill():
-    """Install giskill SKILL.md into Claude skills directory."""
+    """Install rendered giskill SKILL.md into Claude skills directory."""
     skill_dir = Path.home() / ".claude" / "skills" / "giskill"
     skill_dir.mkdir(parents=True, exist_ok=True)
 
@@ -103,17 +157,23 @@ def install_claude_skill():
     if not ROOT_SKILL_FILE.exists():
         print(f"Missing skill source: {ROOT_SKILL_FILE}", file=sys.stderr)
         return 1
-    skill_file.write_text(ROOT_SKILL_FILE.read_text(encoding="utf-8"), encoding="utf-8")
 
-    # Clean up stale artifacts from older versions
-    stale_script = skill_dir / "scripts" / "run_cost_checked_query.sh"
-    if stale_script.exists():
-        stale_script.unlink()
-    stale_scripts_dir = skill_dir / "scripts"
-    if stale_scripts_dir.exists() and not any(stale_scripts_dir.iterdir()):
-        stale_scripts_dir.rmdir()
+    config = load_config(get_config_path())
+    resolved_bq = detect_working_bq_binary(config)
+    if not resolved_bq:
+        print("No working bq binary found. Install Google Cloud SDK first.", file=sys.stderr)
+        print("Then run: giskill install claude", file=sys.stderr)
+        return 1
+
+    skill_template = ROOT_SKILL_FILE.read_text(encoding="utf-8")
+    if "{bq_path}" not in skill_template:
+        print("Skill template is missing {bq_path} placeholder.", file=sys.stderr)
+        return 1
+    rendered_skill = render_skill_template(skill_template, resolved_bq)
+    skill_file.write_text(rendered_skill, encoding="utf-8")
 
     print(f"Installed Claude skill at {skill_file}")
+    print(f"Resolved bq path: {resolved_bq}")
     return 0
 
 
@@ -140,6 +200,92 @@ def save_config(path, data):
     """Persist JSON config to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
+def is_working_bq_binary(path):
+    """Return True when candidate bq binary exists and can run `bq version`."""
+    if not path:
+        return False
+    candidate = Path(path).expanduser()
+    if not candidate.exists() or not os.access(candidate, os.X_OK):
+        return False
+    try:
+        result = subprocess.run(
+            [str(candidate), "version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def detect_shell_path_bq_binary():
+    """Resolve bq binary using PATH from the current login shell."""
+    shell = str(os.environ.get("SHELL", "")).strip() or "/bin/zsh"
+    marker = "__GISKILL_PATH__"
+    for mode in ("-ic", "-lc"):
+        try:
+            result = subprocess.run(
+                [shell, mode, f'printf "{marker}%s" "$PATH"'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if result.returncode != 0:
+            continue
+        output = result.stdout
+        marker_index = output.rfind(marker)
+        shell_path = output[marker_index + len(marker):].strip() if marker_index >= 0 else output.strip()
+        if not shell_path:
+            continue
+        shell_bq = shutil.which("bq", path=shell_path)
+        if shell_bq:
+            return shell_bq
+    return ""
+
+
+def detect_working_bq_binary(config):
+    """Detect working bq binary path with stable priority order."""
+    candidates = []
+    env_override = str(os.environ.get("GISKILL_BQ_PATH", "")).strip()
+    if env_override:
+        candidates.append(env_override)
+    configured = str(config.get("bq_path", "")).strip() if isinstance(config, dict) else ""
+    if configured:
+        candidates.append(configured)
+    shell_bq = detect_shell_path_bq_binary()
+    if shell_bq:
+        candidates.append(shell_bq)
+    which_bq = shutil.which("bq")
+    if which_bq:
+        candidates.append(which_bq)
+    candidates.extend(
+        [
+            "/opt/homebrew/bin/bq",
+            "/usr/local/bin/bq",
+            "/usr/bin/bq",
+            str(Path.home() / "google-cloud-sdk" / "bin" / "bq"),
+            str(Path.home() / "Downloads" / "google-cloud-sdk" / "bin" / "bq"),
+        ]
+    )
+
+    seen = set()
+    for candidate in candidates:
+        resolved = str(Path(candidate).expanduser())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if is_working_bq_binary(resolved):
+            return resolved
+    return ""
 
 
 def is_valid_http_url(url):
@@ -281,6 +427,68 @@ def pretty_print_json(payload):
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def write_json_file(path, payload):
+    """Write pretty JSON payload to file path."""
+    target = Path(path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_text_file(path, content):
+    """Write plain text content to file path."""
+    target = Path(path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+
+
+def extract_json_path(payload, json_path):
+    """Extract value by dot-separated JSON path from payload."""
+    path = str(json_path or "").strip()
+    if not path:
+        raise ValueError("Empty extract path.")
+    if path.startswith("$."):
+        path = path[2:]
+    if path.startswith("$"):
+        path = path[1:]
+    if not path:
+        raise ValueError("Empty extract path.")
+
+    current = payload
+    for segment in path.split("."):
+        key = segment.strip()
+        if not key:
+            raise ValueError(f"Invalid extract path: {json_path}")
+        if isinstance(current, dict):
+            if key not in current:
+                raise ValueError(f"Path not found: {json_path}")
+            current = current[key]
+            continue
+        if isinstance(current, list):
+            try:
+                index = int(key)
+            except ValueError as exc:
+                raise ValueError(f"Expected numeric index in path segment `{key}`.") from exc
+            if index < 0 or index >= len(current):
+                raise ValueError(f"List index out of range in path segment `{key}`.")
+            current = current[index]
+            continue
+        raise ValueError(f"Path segment `{key}` cannot be resolved on scalar value.")
+    return current
+
+
+def format_scalar(value):
+    """Format scalar JSON value as plain text."""
+    if isinstance(value, bool):
+        return "true"
+    if value is None:
+        return "null"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    raise ValueError("Extracted value is not scalar.")
+
+
 def parse_int(value, default=0):
     """Convert protobuf/json numeric field to int with safe fallback."""
     try:
@@ -378,6 +586,65 @@ def build_put_url(dekart_url, endpoint_template, part_number, part_size):
     return f"{base_url}{separator}part_size={part_size}"
 
 
+def upload_parts_from_start_result(local_file, start_result, upload_part_endpoint, required_headers_json, max_part_size, file_id):
+    """Upload local file bytes using one upload session result payload."""
+    file_size = local_file.stat().st_size
+    resolved_endpoint = (upload_part_endpoint or str(start_result.get("upload_part_endpoint", ""))).strip()
+    if not resolved_endpoint:
+        raise ValueError("Missing upload part endpoint. Provide --upload-part-endpoint or start response JSON/file.")
+    resolved_max_part_size = max_part_size if max_part_size and max_part_size > 0 else parse_int(start_result.get("max_part_size"), 0)
+    if resolved_max_part_size <= 0:
+        raise ValueError("Missing max part size. Provide --max-part-size or start response JSON/file.")
+    if required_headers_json:
+        required_headers = parse_required_headers(required_headers_json)
+    else:
+        required_headers = start_result.get("required_headers", [])
+        if not isinstance(required_headers, list):
+            required_headers = []
+    upload_session_id = str(start_result.get("upload_session_id", "")).strip()
+    start_file_id = str(start_result.get("file_id", "")).strip()
+    resolved_file_id = str(file_id or "").strip() or start_file_id
+    if not resolved_file_id:
+        raise ValueError("Missing file id. Provide --file-id or include file_id in start response.")
+    if not upload_session_id:
+        raise ValueError("Missing upload_session_id in start response.")
+    dekart_url = get_dekart_url().rstrip("/")
+
+    parts = []
+    part_number = 1
+    with local_file.open("rb") as source:
+        while True:
+            chunk = source.read(resolved_max_part_size)
+            if not chunk:
+                break
+            put_url = build_put_url(dekart_url, resolved_endpoint, part_number, len(chunk))
+            part_response = upload_part_binary(put_url, chunk, required_headers)
+            parts.append(
+                {
+                    "part_number": parse_int(part_response.get("part_number"), part_number),
+                    "etag": str(part_response.get("etag", "")),
+                    "size": parse_int(part_response.get("size"), len(chunk)),
+                }
+            )
+            part_number += 1
+
+    complete_args = {
+        "file_id": resolved_file_id,
+        "upload_session_id": upload_session_id,
+        "parts": parts,
+        "total_size": file_size,
+    }
+    return {
+        "parts": parts,
+        "parts_uploaded": len(parts),
+        "total_size": file_size,
+        "max_part_size": resolved_max_part_size,
+        "upload_session_id": upload_session_id,
+        "file_id": resolved_file_id,
+        "complete_args": complete_args,
+    }
+
+
 def handle_dekart_tools(raw_json):
     """Fetch MCP tool catalog from configured Dekart instance."""
     dekart_url = get_dekart_url().rstrip("/")
@@ -412,7 +679,7 @@ def handle_dekart_tools(raw_json):
     return 0
 
 
-def handle_dekart_call(name, args_json, raw_json):
+def handle_dekart_call(name, args_json, raw_json, extract, out):
     """Call one MCP tool using dynamic tool name and JSON arguments."""
     try:
         parsed_args = json.loads(args_json)
@@ -432,13 +699,28 @@ def handle_dekart_call(name, args_json, raw_json):
         print(f"MCP call failed: {exc}", file=sys.stderr)
         return 1
 
-    if raw_json:
-        pretty_print_json(payload)
-        return 0
+    try:
+        if extract:
+            value = extract_json_path(payload, extract)
+            scalar = format_scalar(value)
+            if out:
+                write_text_file(out, scalar + "\n")
+            else:
+                print(scalar)
+            return 0
 
-    result = payload.get("result", {})
-    pretty_print_json(result)
-    return 0
+        output_payload = payload if raw_json else payload.get("result", {})
+        if out:
+            write_json_file(out, output_payload)
+        else:
+            pretty_print_json(output_payload)
+        return 0
+    except ValueError as exc:
+        print(f"Invalid extract/output request: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"Failed to write output file: {exc}", file=sys.stderr)
+        return 1
 
 
 def handle_dekart_upload_parts(
@@ -448,6 +730,8 @@ def handle_dekart_upload_parts(
     upload_part_endpoint,
     required_headers_json,
     max_part_size,
+    file_id,
+    complete_args_out,
     raw_json,
 ):
     """Upload local file chunks using start session metadata prepared by MCP."""
@@ -462,73 +746,116 @@ def handle_dekart_upload_parts(
 
     try:
         start_result = parse_upload_start_payload(start_response_json, start_response_file)
-        resolved_endpoint = (upload_part_endpoint or str(start_result.get("upload_part_endpoint", ""))).strip()
-        if not resolved_endpoint:
-            print("Missing upload part endpoint. Provide --upload-part-endpoint or start response JSON/file.", file=sys.stderr)
-            return 2
-        resolved_max_part_size = max_part_size if max_part_size and max_part_size > 0 else parse_int(start_result.get("max_part_size"), 0)
-        if resolved_max_part_size <= 0:
-            print("Missing max part size. Provide --max-part-size or start response JSON/file.", file=sys.stderr)
-            return 2
-        if required_headers_json:
-            required_headers = parse_required_headers(required_headers_json)
-        else:
-            required_headers = start_result.get("required_headers", [])
-            if not isinstance(required_headers, list):
-                required_headers = []
-        upload_session_id = str(start_result.get("upload_session_id", "")).strip()
-        file_id = str(start_result.get("file_id", "")).strip()
-        dekart_url = get_dekart_url().rstrip("/")
-
-        parts = []
-        part_number = 1
-        with local_file.open("rb") as source:
-            while True:
-                chunk = source.read(resolved_max_part_size)
-                if not chunk:
-                    break
-                put_url = build_put_url(dekart_url, resolved_endpoint, part_number, len(chunk))
-                part_response = upload_part_binary(put_url, chunk, required_headers)
-                parts.append(
-                    {
-                        "part_number": parse_int(part_response.get("part_number"), part_number),
-                        "etag": str(part_response.get("etag", "")),
-                        "size": parse_int(part_response.get("size"), len(chunk)),
-                    }
-                )
-                part_number += 1
-
-        complete_args = {"parts": parts, "total_size": file_size}
-        if upload_session_id:
-            complete_args["upload_session_id"] = upload_session_id
-        if file_id:
-            complete_args["file_id"] = file_id
-
-        payload = {
-            "parts": parts,
-            "parts_uploaded": len(parts),
-            "total_size": file_size,
-            "max_part_size": resolved_max_part_size,
-            "upload_session_id": upload_session_id,
-            "file_id": file_id,
-            "complete_args": complete_args,
-        }
+        payload = upload_parts_from_start_result(
+            local_file=local_file,
+            start_result=start_result,
+            upload_part_endpoint=upload_part_endpoint,
+            required_headers_json=required_headers_json,
+            max_part_size=max_part_size,
+            file_id=file_id,
+        )
+        if complete_args_out:
+            write_json_file(complete_args_out, payload.get("complete_args", {}))
         if raw_json:
             pretty_print_json(payload)
         else:
-            print(f"Uploaded parts: {len(parts)}")
-            print(f"Total size: {file_size} bytes")
+            print(f"Uploaded parts: {payload.get('parts_uploaded', 0)}")
+            print(f"Total size: {payload.get('total_size', file_size)} bytes")
             pretty_print_json(payload.get("complete_args", {}))
         return 0
     except ValueError as exc:
         print(f"Invalid upload arguments: {exc}", file=sys.stderr)
         return 2
+    except OSError as exc:
+        print(f"Failed to write output file: {exc}", file=sys.stderr)
+        return 1
     except urllib.error.HTTPError as exc:
         print(f"Upload part request failed ({exc.code}): {exc.reason}", file=sys.stderr)
         return 1
     except Exception as exc:
         print(f"Upload failed: {exc}", file=sys.stderr)
         return 1
+
+
+def resolve_upload_file_name(local_file, explicit_name):
+    """Resolve uploaded file name from explicit value or local file basename."""
+    name = str(explicit_name or "").strip()
+    if name:
+        return name
+    return local_file.name
+
+
+def resolve_upload_mime_type(local_file, explicit_mime_type):
+    """Resolve MIME type from explicit value or local file extension."""
+    mime_type = str(explicit_mime_type or "").strip()
+    if mime_type:
+        return mime_type
+    guessed, _ = mimetypes.guess_type(str(local_file))
+    return guessed or "application/octet-stream"
+
+
+def handle_dekart_upload_file(file_path, file_id, name, mime_type, max_part_size, raw_json, out):
+    """Upload one file end-to-end using MCP start/complete and CLI part PUT automation."""
+    local_file = Path(file_path)
+    if not local_file.exists() or not local_file.is_file():
+        print(f"File not found: {local_file}", file=sys.stderr)
+        return 2
+    total_size = local_file.stat().st_size
+    if total_size <= 0:
+        print("File is empty.", file=sys.stderr)
+        return 2
+
+    try:
+        start_args = {
+            "file_id": str(file_id).strip(),
+            "name": resolve_upload_file_name(local_file, name),
+            "mime_type": resolve_upload_mime_type(local_file, mime_type),
+            "total_size": total_size,
+        }
+        start_payload = mcp_call("start_file_upload_session", start_args, timeout_seconds=30)
+        start_result = start_payload.get("result", {}) if isinstance(start_payload, dict) else {}
+        if not isinstance(start_result, dict):
+            raise ValueError("Invalid start_file_upload_session response.")
+
+        upload_payload = upload_parts_from_start_result(
+            local_file=local_file,
+            start_result=start_result,
+            upload_part_endpoint="",
+            required_headers_json="",
+            max_part_size=max_part_size,
+            file_id=file_id,
+        )
+        complete_args = upload_payload.get("complete_args", {})
+        complete_payload = mcp_call("complete_file_upload_session", complete_args, timeout_seconds=60)
+        complete_result = complete_payload.get("result", complete_payload) if isinstance(complete_payload, dict) else complete_payload
+
+        payload = {
+            "start": start_result,
+            "upload": upload_payload,
+            "complete": complete_result,
+        }
+        if out:
+            write_json_file(out, payload)
+        if raw_json:
+            pretty_print_json(payload)
+        elif not out:
+            print(f"Uploaded parts: {upload_payload.get('parts_uploaded', 0)}")
+            print(f"Total size: {upload_payload.get('total_size', total_size)} bytes")
+            pretty_print_json(complete_result)
+        return 0
+    except ValueError as exc:
+        print(f"Invalid upload-file arguments: {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        print(f"Failed to write output file: {exc}", file=sys.stderr)
+        return 1
+    except urllib.error.HTTPError as exc:
+        print(f"Upload-file request failed ({exc.code}): {exc.reason}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"Upload-file failed: {exc}", file=sys.stderr)
+        return 1
+
 
 # build_device_name returns concise local machine label for Dekart device session records.
 def build_device_name():
@@ -624,7 +951,7 @@ def main():
         if args.dekart_command == "tools":
             raise SystemExit(handle_dekart_tools(args.json))
         if args.dekart_command == "call":
-            raise SystemExit(handle_dekart_call(args.name, args.args, args.json))
+            raise SystemExit(handle_dekart_call(args.name, args.args, args.json, args.extract, args.out))
         if args.dekart_command == "upload-parts":
             raise SystemExit(
                 handle_dekart_upload_parts(
@@ -634,7 +961,21 @@ def main():
                     upload_part_endpoint=args.upload_part_endpoint,
                     required_headers_json=args.required_headers_json,
                     max_part_size=args.max_part_size,
+                    file_id=args.file_id,
+                    complete_args_out=args.complete_args_out,
                     raw_json=args.json,
+                )
+            )
+        if args.dekart_command == "upload-file":
+            raise SystemExit(
+                handle_dekart_upload_file(
+                    file_path=args.file,
+                    file_id=args.file_id,
+                    name=args.name,
+                    mime_type=args.mime_type,
+                    max_part_size=args.max_part_size,
+                    raw_json=args.json,
+                    out=args.out,
                 )
             )
         parser.error("Missing dekart subcommand. Try: giskill dekart config --url <url>")
