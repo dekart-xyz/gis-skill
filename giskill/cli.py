@@ -50,6 +50,24 @@ def build_parser():
         action="store_true",
         help="Print raw JSON payload.",
     )
+    dekart_resolve_tools = dekart_subparsers.add_parser(
+        "resolve-tools",
+        help="Resolve required Dekart MCP tool names for report->dataset->file flow.",
+    )
+    dekart_resolve_tools.add_argument(
+        "--json",
+        action="store_true",
+        help="Print resolved mapping as JSON.",
+    )
+    dekart_resolve_tools.add_argument(
+        "--shell",
+        action="store_true",
+        help="Print shell exports for eval/source usage.",
+    )
+    dekart_resolve_tools.add_argument(
+        "--out",
+        help="Write output to file path instead of stdout.",
+    )
     dekart_call = dekart_subparsers.add_parser("call", help="Call Dekart MCP tool.")
     dekart_call.add_argument("--name", required=True, help="MCP tool name.")
     dekart_call.add_argument(
@@ -647,11 +665,8 @@ def upload_parts_from_start_result(local_file, start_result, upload_part_endpoin
 
 def handle_dekart_tools(raw_json):
     """Fetch MCP tool catalog from configured Dekart instance."""
-    dekart_url = get_dekart_url().rstrip("/")
-    endpoint = f"{dekart_url}/api/v1/mcp/tools"
-    headers = get_auth_headers()
     try:
-        payload = read_json(endpoint, headers=headers)
+        payload = fetch_mcp_tools_payload()
     except urllib.error.HTTPError as exc:
         print(f"MCP tools request failed ({exc.code}): {exc.reason}", file=sys.stderr)
         return 1
@@ -677,6 +692,149 @@ def handle_dekart_tools(raw_json):
             else:
                 print(f"- {name}")
     return 0
+
+
+def fetch_mcp_tools_payload():
+    """Fetch MCP tool catalog payload from configured Dekart instance."""
+    dekart_url = get_dekart_url().rstrip("/")
+    endpoint = f"{dekart_url}/api/v1/mcp/tools"
+    headers = get_auth_headers()
+    return read_json(endpoint, headers=headers)
+
+
+def tool_required_fields(tool):
+    """Return required input schema fields for one MCP tool definition."""
+    schema = tool.get("inputSchema", {}) if isinstance(tool, dict) else {}
+    required = schema.get("required", []) if isinstance(schema, dict) else []
+    return set(required) if isinstance(required, list) else set()
+
+
+def tool_properties(tool):
+    """Return declared input schema properties for one MCP tool definition."""
+    schema = tool.get("inputSchema", {}) if isinstance(tool, dict) else {}
+    props = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    return set(props.keys()) if isinstance(props, dict) else set()
+
+
+def pick_mcp_tool_name(tools, required_fields=(), required_props=(), preferred_names=(), name_contains=()):
+    """Resolve one MCP tool name by schema constraints and optional preferred names."""
+    required_fields = set(required_fields)
+    required_props = set(required_props)
+    name_contains = tuple(str(token).lower() for token in name_contains)
+
+    def collect(filter_by_name):
+        matches = []
+        for tool in tools:
+            name = str(tool.get("name", "")).strip()
+            if not name:
+                continue
+            req = tool_required_fields(tool)
+            props = tool_properties(tool)
+            if not required_fields.issubset(req) or not required_props.issubset(props):
+                continue
+            if filter_by_name:
+                lowered = name.lower()
+                if not all(token in lowered for token in name_contains):
+                    continue
+            matches.append(name)
+        return matches
+
+    candidates = collect(filter_by_name=bool(name_contains))
+    if not candidates and name_contains:
+        candidates = collect(filter_by_name=False)
+
+    for preferred in preferred_names:
+        if preferred in candidates:
+            return preferred
+    return candidates[0] if candidates else ""
+
+
+def resolve_dekart_tool_mapping(tools):
+    """Resolve canonical report->dataset->file tool mapping from MCP tool list."""
+    mapping = {
+        "create_report_tool": pick_mcp_tool_name(
+            tools,
+            required_fields=(),
+            required_props=(),
+            preferred_names=("create_report",),
+            name_contains=("report",),
+        ),
+        "create_dataset_tool": pick_mcp_tool_name(
+            tools,
+            required_fields=("report_id",),
+            required_props=("report_id",),
+            preferred_names=("create_dataset",),
+            name_contains=("dataset",),
+        ),
+        "create_file_tool": pick_mcp_tool_name(
+            tools,
+            required_fields=("dataset_id",),
+            required_props=("dataset_id",),
+            preferred_names=("create_file",),
+            name_contains=("file",),
+        ),
+    }
+    missing = [key for key, value in mapping.items() if not str(value).strip()]
+    if missing:
+        raise ValueError(f"Missing required MCP tools for workflow: {', '.join(missing)}")
+    return mapping
+
+
+def render_shell_exports(mapping):
+    """Render mapping as shell export lines safe for eval/source."""
+    lines = []
+    for key, value in mapping.items():
+        env_key = key.upper()
+        lines.append(f"export {env_key}={json.dumps(value)}")
+    return "\n".join(lines) + "\n"
+
+
+def handle_dekart_resolve_tools(raw_json, shell, out):
+    """Resolve required MCP tool names and print as JSON or shell exports."""
+    if raw_json and shell:
+        print("Use either --json or --shell, not both.", file=sys.stderr)
+        return 2
+    try:
+        payload = fetch_mcp_tools_payload()
+        tools = payload.get("tools", [])
+        if not isinstance(tools, list):
+            print("Invalid MCP tools response.", file=sys.stderr)
+            return 1
+        mapping = resolve_dekart_tool_mapping(tools)
+    except ValueError as exc:
+        print(f"Tool resolution failed: {exc}", file=sys.stderr)
+        return 1
+    except urllib.error.HTTPError as exc:
+        print(f"MCP tools request failed ({exc.code}): {exc.reason}", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"MCP tools request failed: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        if shell:
+            shell_text = render_shell_exports(mapping)
+            if out:
+                write_text_file(out, shell_text)
+            else:
+                print(shell_text, end="")
+            return 0
+        if raw_json:
+            if out:
+                write_json_file(out, mapping)
+            else:
+                pretty_print_json(mapping)
+            return 0
+        lines = [f"{key}: {value}" for key, value in mapping.items()]
+        text = "\n".join(lines) + "\n"
+        if out:
+            write_text_file(out, text)
+        else:
+            print(text, end="")
+        return 0
+    except OSError as exc:
+        print(f"Failed to write output file: {exc}", file=sys.stderr)
+        return 1
 
 
 def handle_dekart_call(name, args_json, raw_json, extract, out):
@@ -950,6 +1108,8 @@ def main():
             raise SystemExit(handle_dekart_init(args.no_browser))
         if args.dekart_command == "tools":
             raise SystemExit(handle_dekart_tools(args.json))
+        if args.dekart_command == "resolve-tools":
+            raise SystemExit(handle_dekart_resolve_tools(args.json, args.shell, args.out))
         if args.dekart_command == "call":
             raise SystemExit(handle_dekart_call(args.name, args.args, args.json, args.extract, args.out))
         if args.dekart_command == "upload-parts":
