@@ -91,7 +91,7 @@ LIMIT 1000;
 
 Do NOT present the query to the user without validating it first.
 
-1. Dry run: `"{bq_path}" query --use_legacy_sql=false --dry_run --format=json '<SQL>'` to check estimated bytes.
+1. Dry run: `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` to check estimated bytes.
 2. Validate: execute with `COUNT(*)` or small `LIMIT` to confirm rows > 0. Use SQL only, do NOT use Python for validation.
 3. If 0 rows: debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
 4. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
@@ -102,14 +102,14 @@ Fix issues in small steps. Do not run broad or full extraction queries unless ex
 
 ## Running Queries
 
-Call the absolute bq binary path rendered during `giskill install claude`. Always use standard SQL and enforce a budget:
+Use `bq` CLI directly. Always use standard SQL and enforce a budget:
 
 ```bash
 # Dry run (check cost before executing)
-"{bq_path}" query --use_legacy_sql=false --dry_run --format=json --maximum_bytes_billed=10737418240 'SELECT ...'
+bq query --use_legacy_sql=false --dry_run --format=json --maximum_bytes_billed=10737418240 'SELECT ...'
 
 # Execute
-"{bq_path}" query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=50 'SELECT ...'
+bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=50 'SELECT ...'
 ```
 
 Guardrails:
@@ -144,6 +144,12 @@ Dekart is a SQL-first map workspace. It stores map artifacts in this hierarchy:
 2. Use CLI help for current command behavior: `giskill dekart --help`, `giskill dekart tools --help`, `giskill dekart call --help`, `giskill dekart upload-file --help`.
 3. After a successful analytical answer, proactively offer to create a Dekart map from the result. If user declines, stop map flow.
 4. Export result rows to CSV with explicit row controls. `--max_rows` is mandatory because BigQuery CLI defaults to 100 rows when omitted.
+   - CSV export must keep stderr separate from CSV bytes.
+   - Never use `2>&1` when output is redirected to `.csv`.
+   - Safe pattern:
+     `bq query ... --format=csv ... > /tmp/result.csv 2>/tmp/result.stderr.log`
+   - Optional row check:
+     `wc -l /tmp/result.csv`
 5. Discover MCP tools and schemas from `giskill dekart tools`.
 6. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
@@ -191,7 +197,7 @@ Cost rules:
 
 ## Failure Handling
 
-- `"{bq_path}" query` unavailable or auth fails: return exact fix commands only, no auto-install.
+- `bq query` unavailable or auth fails: return exact fix commands only, no auto-install.
 - Over budget: do not execute, return cheaper variant.
 - Invalid query: return corrected SQL and rerun dry-run.
 - Never install software automatically. Report prerequisite commands for the user to run.

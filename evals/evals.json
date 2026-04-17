@@ -17,6 +17,15 @@
         "assertions": [
           "Run query and ensure that the result is not empty and contains exactly 1 row."
         ]
+      },
+      {
+        "id": "berlin-create-map",
+        "prompt": "find berlin administrative boundaries in bigquery and create a dekart map from the result",
+        "assertions": [
+          "Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.",
+          "Agent used giskill to upload the query result to Dekart and create a map.",
+          "Agent returned user map URL after map creation."
+        ]
       }
   ]
 }

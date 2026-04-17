@@ -4,8 +4,6 @@ import json
 import mimetypes
 import os
 import platform
-import shutil
-import subprocess
 import tempfile
 import time
 import sys
@@ -159,15 +157,8 @@ def build_parser():
     return parser
 
 
-def render_skill_template(skill_template, bq_path):
-    """Render SKILL.md template with resolved absolute bq binary path."""
-    # why: SKILL.md already wraps {bq_path} with double quotes in command examples.
-    # Adding shlex.quote here would create nested quotes and break execution.
-    return skill_template.replace("{bq_path}", bq_path)
-
-
 def install_claude_skill():
-    """Install rendered giskill SKILL.md into Claude skills directory."""
+    """Install giskill SKILL.md into Claude skills directory."""
     skill_dir = Path.home() / ".claude" / "skills" / "giskill"
     skill_dir.mkdir(parents=True, exist_ok=True)
 
@@ -176,22 +167,10 @@ def install_claude_skill():
         print(f"Missing skill source: {ROOT_SKILL_FILE}", file=sys.stderr)
         return 1
 
-    config = load_config(get_config_path())
-    resolved_bq = detect_working_bq_binary(config)
-    if not resolved_bq:
-        print("No working bq binary found. Install Google Cloud SDK first.", file=sys.stderr)
-        print("Then run: giskill install claude", file=sys.stderr)
-        return 1
-
-    skill_template = ROOT_SKILL_FILE.read_text(encoding="utf-8")
-    if "{bq_path}" not in skill_template:
-        print("Skill template is missing {bq_path} placeholder.", file=sys.stderr)
-        return 1
-    rendered_skill = render_skill_template(skill_template, resolved_bq)
-    skill_file.write_text(rendered_skill, encoding="utf-8")
+    skill_source = ROOT_SKILL_FILE.read_text(encoding="utf-8")
+    skill_file.write_text(skill_source, encoding="utf-8")
 
     print(f"Installed Claude skill at {skill_file}")
-    print(f"Resolved bq path: {resolved_bq}")
     return 0
 
 
@@ -218,92 +197,6 @@ def save_config(path, data):
     """Persist JSON config to disk."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-
-
-def is_working_bq_binary(path):
-    """Return True when candidate bq binary exists and can run `bq version`."""
-    if not path:
-        return False
-    candidate = Path(path).expanduser()
-    if not candidate.exists() or not os.access(candidate, os.X_OK):
-        return False
-    try:
-        result = subprocess.run(
-            [str(candidate), "version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return result.returncode == 0
-
-
-def detect_shell_path_bq_binary():
-    """Resolve bq binary using PATH from the current login shell."""
-    shell = str(os.environ.get("SHELL", "")).strip() or "/bin/zsh"
-    marker = "__GISKILL_PATH__"
-    for mode in ("-ic", "-lc"):
-        try:
-            result = subprocess.run(
-                [shell, mode, f'printf "{marker}%s" "$PATH"'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            continue
-        if result.returncode != 0:
-            continue
-        output = result.stdout
-        marker_index = output.rfind(marker)
-        shell_path = output[marker_index + len(marker):].strip() if marker_index >= 0 else output.strip()
-        if not shell_path:
-            continue
-        shell_bq = shutil.which("bq", path=shell_path)
-        if shell_bq:
-            return shell_bq
-    return ""
-
-
-def detect_working_bq_binary(config):
-    """Detect working bq binary path with stable priority order."""
-    candidates = []
-    env_override = str(os.environ.get("GISKILL_BQ_PATH", "")).strip()
-    if env_override:
-        candidates.append(env_override)
-    configured = str(config.get("bq_path", "")).strip() if isinstance(config, dict) else ""
-    if configured:
-        candidates.append(configured)
-    shell_bq = detect_shell_path_bq_binary()
-    if shell_bq:
-        candidates.append(shell_bq)
-    which_bq = shutil.which("bq")
-    if which_bq:
-        candidates.append(which_bq)
-    candidates.extend(
-        [
-            "/opt/homebrew/bin/bq",
-            "/usr/local/bin/bq",
-            "/usr/bin/bq",
-            str(Path.home() / "google-cloud-sdk" / "bin" / "bq"),
-            str(Path.home() / "Downloads" / "google-cloud-sdk" / "bin" / "bq"),
-        ]
-    )
-
-    seen = set()
-    for candidate in candidates:
-        resolved = str(Path(candidate).expanduser())
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if is_working_bq_binary(resolved):
-            return resolved
-    return ""
 
 
 def is_valid_http_url(url):

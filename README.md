@@ -11,16 +11,7 @@ This installs to:
 
 `~/.claude/skills/giskill/SKILL.md`
 
-During install, `giskill` resolves a working `bq` binary and writes it into the rendered skill file.
-
-It does not auto-write detected `bq` path to config.
-
-Optional override:
-
-- Set `GISKILL_BQ_PATH` environment variable, or
-- Set `bq_path` in `~/.config/giskill/config.json`
-
-If no working `bq` is found, install fails fast so the skill is not installed in a broken state.
+Install copies the canonical skill file as-is. The skill uses plain `bq` and `giskill` commands.
 
 ## Local Claude skill source
 
@@ -30,11 +21,11 @@ Canonical skill instructions are in:
 
 ## How it works
 
-Once installed, Claude Code auto-discovers the skill and uses it to build cost-safe Overture Maps SQL for BigQuery. During install, `giskill` renders SKILL template placeholder `{bq_path}` to a currently working local `bq` binary path.
+Once installed, Claude Code auto-discovers the skill and uses it to build cost-safe Overture Maps SQL for BigQuery.
 
 Requires: [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) with `bq` CLI authenticated.
 
-The rendered skill then calls `"{bq_path}" query ...` directly, without PATH-dependent prefixes.
+The skill calls `bq query ...` and `giskill ...` using your shell environment.
 
 ## Dekart URL config
 
@@ -144,3 +135,48 @@ Flow:
 - Browser opens `/device/authorize?device_id=...`
 - After login and authorization, CLI polls `/api/v1/device/token`
 - JWT is saved to `~/.config/giskill/token.json`
+
+## Troubleshooting
+
+Quick checks:
+
+```bash
+which giskill
+giskill --help
+
+which bq
+bq version
+```
+
+If `giskill` is not found:
+
+```bash
+python3 -m pip install -e .
+python3 -m giskill --help
+```
+
+If `bq query` fails with Google Cloud SDK Python runtime issues, set a compatible interpreter:
+
+```bash
+which python3
+export CLOUDSDK_PYTHON=/path/to/python3
+bq query --use_legacy_sql=false --dry_run --format=json 'SELECT 1'
+```
+
+Persist it in shell profile if needed:
+
+```bash
+echo 'export CLOUDSDK_PYTHON=/path/to/python3' >> ~/.zshrc
+```
+
+If uploaded CSV looks corrupted in Dekart (for example contains `Waiting on bqjob...`):
+
+- Root cause is usually redirecting stderr into CSV.
+- Never use `2>&1` when writing CSV files.
+
+Use this export pattern:
+
+```bash
+bq query --use_legacy_sql=false --format=csv --maximum_bytes_billed=10737418240 --max_rows=100 'SELECT ...' > /tmp/result.csv 2>/tmp/result.stderr.log
+wc -l /tmp/result.csv
+```

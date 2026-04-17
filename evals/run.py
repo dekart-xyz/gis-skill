@@ -47,6 +47,25 @@ def parse_args():
         action="store_true",
         help="Delete output directory before run.",
     )
+    parser.add_argument(
+        "--show-io",
+        dest="show_io",
+        action="store_true",
+        help="Print live Claude input/output trace for each eval turn (default: enabled).",
+    )
+    parser.add_argument(
+        "--no-show-io",
+        dest="show_io",
+        action="store_false",
+        help="Disable live Claude IO trace.",
+    )
+    parser.set_defaults(show_io=True)
+    parser.add_argument(
+        "--io-max-chars",
+        type=int,
+        default=1000,
+        help="Max chars per printed IO block when --show-io is enabled.",
+    )
     return parser.parse_args()
 
 
@@ -72,6 +91,54 @@ def build_skill_prompt(skill_name, prompt):
     return f"/{skill_name} {prompt}"
 
 
+def short_text(value, max_chars):
+    """Return a compact single-line preview with bounded length."""
+    if value is None:
+        return ""
+    text = str(value).replace("\n", "\\n")
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "...<truncated>"
+
+
+def print_event_trace(event, io_max_chars):
+    """Print concise per-event trace line for stream-json events."""
+    event_type = event.get("type")
+    if event_type == "assistant":
+        message = event.get("message", {})
+        for block in message.get("content", []):
+            if not isinstance(block, dict):
+                continue
+            block_type = block.get("type")
+            if block_type == "text":
+                log(f"    [assistant:text] {short_text(block.get('text', ''), io_max_chars)}")
+            elif block_type == "thinking":
+                log(f"    [assistant:thinking] {short_text(block.get('thinking', ''), io_max_chars)}")
+            elif block_type == "tool_use":
+                name = block.get("name", "")
+                tool_input = block.get("input", {})
+                command = tool_input.get("command") if isinstance(tool_input, dict) else ""
+                if command:
+                    log(f"    [assistant:tool_use:{name}] {short_text(command, io_max_chars)}")
+                else:
+                    log(
+                        "    [assistant:tool_use:"
+                        f"{name}] {short_text(json.dumps(tool_input, ensure_ascii=False), io_max_chars)}"
+                    )
+    elif event_type == "user":
+        tool_result = event.get("tool_use_result")
+        if isinstance(tool_result, dict):
+            stdout = short_text(tool_result.get("stdout", ""), io_max_chars)
+            stderr = short_text(tool_result.get("stderr", ""), io_max_chars)
+            if stdout:
+                log(f"    [tool:stdout] {stdout}")
+            if stderr:
+                log(f"    [tool:stderr] {stderr}")
+    elif event_type == "result":
+        log(f"    [result:{event.get('subtype', 'unknown')}]")
+        log(f"    [result:text] {short_text(event.get('result', ''), io_max_chars)}")
+
+
 def run_claude_stream(
     claude_bin,
     model,
@@ -80,6 +147,9 @@ def run_claude_stream(
     allowed_tools,
     safe_mode,
     resume_session_id="",
+    show_io=False,
+    io_max_chars=1000,
+    turn_name="run",
 ):
     """Run Claude in stream-json mode and return events + final result event."""
     cmd = [claude_bin, "-p", "--verbose", "--output-format", "stream-json", prompt]
@@ -95,13 +165,23 @@ def run_claude_stream(
         cmd[1:1] = ["--dangerously-skip-permissions"]
 
     log(f"  -> Claude command: {' '.join(cmd[:-1])} <prompt>")
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise RuntimeError(f"Claude CLI failed: {proc.stderr.strip() or proc.stdout.strip()}")
+    if show_io:
+        log(f"  -> [{turn_name}] Prompt:")
+        log(f"     {prompt}")
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
 
     events = []
     result_event = None
-    for raw_line in proc.stdout.splitlines():
+    stdout_lines = []
+    for raw_line in proc.stdout:
+        stdout_lines.append(raw_line)
         line = raw_line.strip()
         if not line:
             continue
@@ -110,8 +190,16 @@ def run_claude_stream(
         except json.JSONDecodeError:
             continue
         events.append(event)
+        if show_io:
+            print_event_trace(event, io_max_chars)
         if event.get("type") == "result":
             result_event = event
+
+    stderr_text = proc.stderr.read() if proc.stderr else ""
+    return_code = proc.wait()
+    if return_code != 0:
+        fallback_out = "".join(stdout_lines).strip()
+        raise RuntimeError(f"Claude CLI failed: {stderr_text.strip() or fallback_out}")
 
     if result_event is None:
         raise RuntimeError("Claude stream-json output did not include final result event.")
@@ -328,6 +416,9 @@ def main():
             args.permission_mode,
             args.allowed_tools,
             args.safe_mode,
+            show_io=args.show_io,
+            io_max_chars=args.io_max_chars,
+            turn_name=f"{case_id}:generation",
         )
         session_id = gen_result.get("session_id", "")
         output_text = gen_result.get("result", "")
@@ -343,6 +434,9 @@ def main():
             args.allowed_tools,
             args.safe_mode,
             resume_session_id=session_id,
+            show_io=args.show_io,
+            io_max_chars=args.io_max_chars,
+            turn_name=f"{case_id}:grading",
         )
 
         # Artifact writes

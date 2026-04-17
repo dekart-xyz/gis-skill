@@ -24,6 +24,20 @@ Assertions are plain strings only.
 python3 evals/run.py
 ```
 
+By default, the runner prints a live trace of Claude IO (prompt, tool calls, tool outputs, final result) so you can see exactly what is happening.
+
+Quiet mode:
+
+```bash
+python3 evals/run.py --no-show-io
+```
+
+Adjust trace truncation length:
+
+```bash
+python3 evals/run.py --io-max-chars 2000
+```
+
 Default permission behavior for this command:
 
 - `--dangerously-skip-permissions` (unless `--safe-mode` is set)
