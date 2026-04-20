@@ -3,34 +3,34 @@
     {
       "assertion": "Agent used bq with --maximum_bytes_billed set.",
       "passed": true,
-      "evidence": "All bq commands in the session included --maximum_bytes_billed=10737418240 (10 GiB). Verified across dry-run, COUNT, and final query calls.",
+      "evidence": "All bq calls in the session included --maximum_bytes_billed=10737418240 (10 GiB).",
       "commands_run": [],
-      "result_snippet": "Every bq call included: --maximum_bytes_billed=10737418240"
+      "result_snippet": "bq query --use_legacy_sql=false --dry_run --format=json --maximum_bytes_billed=10737418240 ..."
     },
     {
       "assertion": "Agent validated the query (dry run + row count check) before presenting the final answer.",
       "passed": true,
-      "evidence": "Dry run was executed first (estimated 707,099,400 bytes), then a COUNT(*) query confirmed 33 rows before the final query was presented.",
+      "evidence": "Dry run returned ~751 MB estimated bytes; COUNT(*) query confirmed 33 rows before the final query was presented.",
       "commands_run": [],
-      "result_snippet": "dry_run totalBytesProcessed=707099400; COUNT(*)=33"
+      "result_snippet": "dry run: totalBytesProcessed=751362257; COUNT(*)=33"
     },
     {
       "assertion": "Run query and ensure that the result is not empty.",
       "passed": true,
-      "evidence": "Executed the final query with LIMIT 5; returned 5 rows with borough names and polygon geometries (Barking and Dagenham, Barnet, Bexley, Brent, Bromley).",
+      "evidence": "Query returned 33 rows with non-null geometry for all London boroughs.",
       "commands_run": [
-        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=5 'SELECT id, names.primary AS borough_name, geometry FROM `bigquery-public-data.overture_maps.division_area` WHERE country = 'GB' AND region = 'GB-ENG' AND subtype = 'county' AND class = 'land' AND bbox.xmax >= -0.5097 AND bbox.xmin <= 0.334 AND bbox.ymax >= 51.28 AND bbox.ymin <= 51.692 AND names.primary NOT IN ('Buckinghamshire','Essex','Hertfordshire','Kent','Surrey','Slough','Thurrock','Windsor and Maidenhead') ORDER BY borough_name LIMIT 5'"
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=5 'SELECT id, names.primary AS name, geometry IS NOT NULL AS has_geometry FROM ... LIMIT 5'"
       ],
-      "result_snippet": "borough_name: Barking and Dagenham, Barnet, Bexley, Brent, Bromley \u2014 all with geometry polygons"
+      "result_snippet": "[{\"name\":\"Haringey\",\"has_geometry\":\"true\"},{\"name\":\"Ealing\",\"has_geometry\":\"true\"},{\"name\":\"Lambeth\",\"has_geometry\":\"true\"}, ...]"
     },
     {
       "assertion": "Calculate the area of returned geometries and check if the total area is ~1,577 sq km (+/- 2%).",
       "passed": true,
-      "evidence": "ST_AREA summed over all 33 borough geometries returned 1577.37 sq km. Expected range: 1545.0\u20131608.5 sq km. 1577.37 is within +/- 2% of 1577.",
+      "evidence": "SUM(ST_AREA(geometry))/1e6 = 1577.4 km\u00b2. Tolerance band: 1545.5\u20131608.5 km\u00b2. 1577.4 is within range.",
       "commands_run": [
-        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=5 'SELECT ROUND(SUM(ST_AREA(geometry) / 1e6), 2) AS total_area_sq_km FROM `bigquery-public-data.overture_maps.division_area` WHERE country = 'GB' AND region = 'GB-ENG' AND subtype = 'county' AND class = 'land' AND bbox.xmax >= -0.5097 AND bbox.xmin <= 0.334 AND bbox.ymax >= 51.28 AND bbox.ymin <= 51.692 AND names.primary NOT IN ('Buckinghamshire','Essex','Hertfordshire','Kent','Surrey','Slough','Thurrock','Windsor and Maidenhead')'"
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 'SELECT COUNT(*) AS row_count, ROUND(SUM(ST_AREA(geometry)) / 1e6, 1) AS total_area_km2 FROM ... '"
       ],
-      "result_snippet": "total_area_sq_km: 1577.37"
+      "result_snippet": "{\"row_count\":\"33\",\"total_area_km2\":\"1577.4\"}"
     }
   ],
   "summary": {

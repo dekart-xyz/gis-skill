@@ -3,11 +3,11 @@
     {
       "assertion": "Run query and ensure that the result is not empty and contains exactly 1 row.",
       "passed": true,
-      "evidence": "COUNT(*) returned 1 for the Paris localadmin boundary query against bigquery-public-data.overture_maps.division_area with all filters applied.",
+      "evidence": "Query executed successfully and returned exactly 1 row: Paris (county, FR-IDF) with a valid POLYGON geometry.",
       "commands_run": [
-        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=10 'SELECT COUNT(*) AS row_count FROM `bigquery-public-data.overture_maps.division_area` WHERE country = \\'FR\\' AND subtype = \\'localadmin\\' AND class = \\'land\\' AND LOWER(names.primary) = \\'paris\\' AND bbox.xmax >= 2.2241218090057373 AND bbox.xmin <= 2.4697604179382324 AND bbox.ymax >= 48.815574645996094 AND bbox.ymin <= 48.902156829833984'"
+        "bq query --use_legacy_sql=false --format=json --maximum_bytes_billed=10737418240 --max_rows=10 \"SELECT id, names.primary AS name, subtype, class, country, region, geometry FROM `bigquery-public-data.overture_maps.division_area` WHERE country = 'FR' AND subtype = 'county' AND class = 'land' AND bbox.xmax >= 2.2241218090057373 AND bbox.xmin <= 2.4697604179382324 AND bbox.ymax >= 48.815574645996094 AND bbox.ymin <= 48.902156829833984 AND LOWER(names.primary) = 'paris' LIMIT 10;\""
       ],
-      "result_snippet": "[{\"row_count\":\"1\"}]"
+      "result_snippet": "[{\"class\":\"land\",\"country\":\"FR\",\"id\":\"a86c4ba9-8261-4a37-9fac-0c6aa9456d05\",\"name\":\"Paris\",\"region\":\"FR-IDF\",\"subtype\":\"county\",\"geometry\":\"POLYGON((2.2677743 48.8278688, ...))\"}]"
     }
   ],
   "summary": {

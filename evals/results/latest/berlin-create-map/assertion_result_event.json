@@ -1,0 +1,59 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "api_error_status": null,
+  "duration_ms": 13386,
+  "duration_api_ms": 13373,
+  "num_turns": 1,
+  "result": "```json\n{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.\",\n      \"passed\": true,\n      \"evidence\": \"The very first two commands in the session were run in parallel: `giskill dekart tools --json` and the BigQuery INFORMATION_SCHEMA table list. The Dekart tools check returned successfully before any create_report, create_dataset, create_file, or upload-file calls were made.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"giskill dekart tools --json returned tools list including create_report, create_dataset, create_file, etc. \u2014 confirmed before any write action.\"\n    },\n    {\n      \"assertion\": \"Agent used giskill to upload the query result to Dekart and create a map.\",\n      \"passed\": true,\n      \"evidence\": \"Agent ran: (1) giskill dekart call --name create_report, (2) giskill dekart call --name create_dataset, (3) giskill dekart call --name create_file, (4) giskill dekart upload-file --file /tmp/berlin_admin.csv. Upload completed with status='completed', size=661572 bytes.\",\n      \"commands_run\": [\n        \"giskill dekart call --name create_report --args '{}' --json\",\n        \"giskill dekart call --name create_dataset --args '{\\\"report_id\\\": \\\"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\\\"}' --json\",\n        \"giskill dekart call --name create_file --args '{\\\"dataset_id\\\": \\\"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\\\"}' --json\",\n        \"giskill dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json\"\n      ],\n      \"result_snippet\": \"{\\\"complete\\\": {\\\"file_id\\\": \\\"6e379e96-7501-402a-813a-285c8377b7af\\\", \\\"status\\\": \\\"completed\\\", \\\"size\\\": \\\"661572\\\"}}\"\n    },\n    {\n      \"assertion\": \"Agent returned user map URL after map creation.\",\n      \"passed\": true,\n      \"evidence\": \"Final response included the report URL from the create_report response: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e, sourced from report_url field (not reconstructed from config).\",\n      \"commands_run\": [],\n      \"result_snippet\": \"Report URL: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"\n    }\n  ],\n  \"summary\": {\n    \"passed\": 3,\n    \"failed\": 0,\n    \"total\": 3,\n    \"pass_rate\": 1.0\n  }\n}\n```",
+  "stop_reason": "end_turn",
+  "session_id": "1825a1da-cad6-414f-833a-ab9481913ec1",
+  "total_cost_usd": 0.026644050000000002,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 533,
+    "cache_read_input_tokens": 30631,
+    "output_tokens": 1030,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 533,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1030,
+        "cache_read_input_tokens": 30631,
+        "cache_creation_input_tokens": 533,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 533
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-sonnet-4-6": {
+      "inputTokens": 2,
+      "outputTokens": 1030,
+      "cacheReadInputTokens": 30631,
+      "cacheCreationInputTokens": 533,
+      "webSearchRequests": 0,
+      "costUSD": 0.026644050000000002,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "uuid": "fc37468d-22d9-4ca2-86ae-0cf282fed4fb"
+}

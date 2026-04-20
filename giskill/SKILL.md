@@ -92,9 +92,17 @@ LIMIT 1000;
 Do NOT present the query to the user without validating it first.
 
 1. Dry run: `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` to check estimated bytes.
-2. Validate: execute with `COUNT(*)` or small `LIMIT` to confirm rows > 0. Use SQL only, do NOT use Python for validation.
-3. If 0 rows: debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
-4. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
+2. Validate row count: execute `COUNT(*)` (or equivalent) to confirm rows > 0. Use SQL only, do NOT use Python for validation.
+3. Validate total area when possible: if output includes polygonal `GEOGRAPHY` geometry, compute total area (for example `SUM(ST_AREA(geometry))`) and return units in square meters (and optionally km²).
+   - If geometry is non-polygonal (point/line) or no geometry is selected, explicitly state area validation is not applicable.
+4. If Dekart is available, use report snapshot validation for map outputs:
+   - check availability with `giskill dekart tools --json`
+   - if available, create snapshot URL with Dekart MCP snapshot tool and verify rendered output matches expected extent/content
+5. If Dekart is not available, continue SQL validation and explicitly offer:
+   - `giskill dekart init`
+   - then rerun snapshot validation for better visual QA
+6. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
+7. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
 
 ### Step 5: Iterate
 
@@ -158,7 +166,10 @@ Dekart is a SQL-first map workspace. It stores map artifacts in this hierarchy:
 7. Execute control plane in this exact order: report -> dataset -> file.
 8. Upload CSV with `giskill dekart upload-file` and use returned `complete` payload/status.
 9. Treat upload as successful only when completion status is `completed`.
-10. Return resulting IDs and URL in final response.
+10. Validate map output with snapshot after successful upload:
+   - call Dekart snapshot tool for the target report
+   - verify snapshot render reflects expected area/content before finalizing
+11. Return resulting IDs and URL in final response.
 
 ### Response requirements
 

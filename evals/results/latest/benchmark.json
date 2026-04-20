@@ -2,6 +2,13 @@
   "skill_name": "giskill",
   "cases": [
     {
+      "id": "berlin-create-map",
+      "passed": 3,
+      "failed": 0,
+      "total": 3,
+      "pass_rate": 1.0
+    },
+    {
       "id": "london-boroughs",
       "passed": 4,
       "failed": 0,
@@ -17,10 +24,10 @@
     }
   ],
   "summary": {
-    "passed_assertions": 5,
-    "total_assertions": 5,
+    "passed_assertions": 8,
+    "total_assertions": 8,
     "pass_rate": 1.0,
-    "avg_tokens_per_turn": 2952.0,
-    "avg_duration_ms_per_turn": 65428.5
+    "avg_tokens_per_turn": 3084.6666666666665,
+    "avg_duration_ms_per_turn": 72269.5
   }
 }

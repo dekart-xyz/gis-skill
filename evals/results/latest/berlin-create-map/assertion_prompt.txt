@@ -1,0 +1,27 @@
+Now validate the assertions below for your previous answer in this same session.
+Rules:
+1. For EACH assertion, actively validate it.
+2. If validation requires data checks, run bq queries yourself.
+3. If you cannot validate an assertion, mark it passed=false.
+4. Output ONLY valid JSON.
+5. JSON format:
+{
+  "assertion_results": [
+    {
+      "assertion": "<string>",
+      "passed": true,
+      "evidence": "<short evidence>",
+      "commands_run": ["<command1>", "<command2>"],
+      "result_snippet": "<short stdout/result snippet>"
+    }
+  ],
+  "summary": {"passed": 0, "failed": 0, "total": 0, "pass_rate": 0.0}
+}
+
+Assertions:
+[
+  "Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.",
+  "Agent used giskill to upload the query result to Dekart and create a map.",
+  "Agent returned user map URL after map creation."
+]
+

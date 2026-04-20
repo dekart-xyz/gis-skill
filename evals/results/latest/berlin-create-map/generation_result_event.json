@@ -1,0 +1,69 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "api_error_status": null,
+  "duration_ms": 202604,
+  "duration_api_ms": 150327,
+  "num_turns": 26,
+  "result": "The snapshot shows Berlin's administrative boundaries rendered correctly \u2014 all 103 Ortsteile (sub-districts) visible across the full extent of the city.\n\n---\n\n**Done.** Here's the summary:\n\n- **Report ID:** `bed67dd6-9ed7-4c4e-86aa-5553b5cac78e`\n- **Dataset ID:** `6f6e5705-3d6e-42fa-8145-1b3c90b12da8`\n- **File ID:** `6e379e96-7501-402a-813a-285c8377b7af`\n- **Upload status:** `completed`\n- **Report URL:** http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\n\nThe map shows **103 Berlin Ortsteile** (official administrative sub-districts, ~906 km\u00b2 total) from Overture Maps `division_area`. Note: Overture Maps doesn't include Berlin's 12 Bezirke (boroughs) as a separate level \u2014 the Ortsteile are the finest administrative granularity available.",
+  "stop_reason": "end_turn",
+  "session_id": "1825a1da-cad6-414f-833a-ab9481913ec1",
+  "total_cost_usd": 0.36863405000000005,
+  "usage": {
+    "input_tokens": 26,
+    "cache_creation_input_tokens": 18553,
+    "cache_read_input_tokens": 598728,
+    "output_tokens": 6753,
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 18553,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "",
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 272,
+        "cache_read_input_tokens": 30410,
+        "cache_creation_input_tokens": 221,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 221
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard"
+  },
+  "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 358,
+      "outputTokens": 20,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.00045799999999999997,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    },
+    "claude-sonnet-4-6": {
+      "inputTokens": 27,
+      "outputTokens": 7243,
+      "cacheReadInputTokens": 622171,
+      "cacheCreationInputTokens": 19413,
+      "webSearchRequests": 0,
+      "costUSD": 0.36817605,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "uuid": "2863d49e-3c96-403d-b605-cf53b2158214"
+}

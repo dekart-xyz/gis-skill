@@ -2,39 +2,62 @@
   "type": "result",
   "subtype": "success",
   "is_error": false,
-  "duration_ms": 49412,
-  "duration_api_ms": 40929,
+  "api_error_status": null,
+  "duration_ms": 43945,
+  "duration_api_ms": 31377,
   "num_turns": 6,
-  "result": "Query validated - returns 1 row with the full Paris boundary polygon.\n\n---\n\nHere is the SQL for Paris boundaries:\n\n```sql\nSELECT\n  id,\n  subtype,\n  class,\n  names.primary AS name,\n  geometry\nFROM `bigquery-public-data.overture_maps.division_area`\nWHERE country = 'FR'\n  AND subtype = 'localadmin'\n  AND class = 'land'\n  AND LOWER(names.primary) = 'paris'\n  -- bbox overlap scan gate (partition pruning)\n  AND bbox.xmax >= 2.2241218090057373\n  AND bbox.xmin <= 2.4697604179382324\n  AND bbox.ymax >= 48.815574645996094\n  AND bbox.ymin <= 48.902156829833984\nLIMIT 1;\n```\n\n**What it returns:** The single `localadmin` polygon for Paris (city boundary), including the `geometry` column as a BigQuery `GEOGRAPHY` type \u2014 ready for `ST_INTERSECTS`, `ST_AREA`, or map rendering.\n\n**Notes:**\n- `subtype = 'localadmin'` is the authoritative administrative unit for the city of Paris.\n- To get the `county` or `locality` variant instead, swap the subtype value \u2014 all three share the same bbox and geometry in this dataset.\n- Estimated scan: ~663 MB (under 10 GiB budget).",
+  "result": "1 row, area ~105 km\u00b2 \u2014 correct for Paris. Here's the validated query:\n\n```sql\nSELECT\n  id,\n  names.primary AS name,\n  subtype,\n  class,\n  country,\n  region,\n  geometry\nFROM `bigquery-public-data.overture_maps.division_area`\nWHERE country = 'FR'\n  AND subtype = 'county'\n  AND class = 'land'\n  AND bbox.xmax >= 2.2241218090057373\n  AND bbox.xmin <= 2.4697604179382324\n  AND bbox.ymax >= 48.815574645996094\n  AND bbox.ymin <= 48.902156829833984\n  AND LOWER(names.primary) = 'paris'\nLIMIT 10;\n```\n\n**Validation:**\n- Dry run: ~680 MB processed, within 10 GiB budget\n- Rows: 1 (Paris county boundary)\n- Area: ~105 km\u00b2 \u2014 matches the real city of Paris\n\nWould you like me to create a Dekart map from this result?",
   "stop_reason": "end_turn",
-  "session_id": "8ea68026-acda-40cd-bda4-1ba3c6130c5d",
-  "total_cost_usd": 0.13552785,
+  "session_id": "b499fa2d-7b74-4107-b6ae-d329876d7535",
+  "total_cost_usd": 0.09392414999999998,
   "usage": {
     "input_tokens": 7,
-    "cache_creation_input_tokens": 20987,
-    "cache_read_input_tokens": 77652,
-    "output_tokens": 2234,
+    "cache_creation_input_tokens": 9773,
+    "cache_read_input_tokens": 88468,
+    "output_tokens": 2020,
     "server_tool_use": {
       "web_search_requests": 0,
       "web_fetch_requests": 0
     },
     "service_tier": "standard",
     "cache_creation": {
-      "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 20987
+      "ephemeral_1h_input_tokens": 9773,
+      "ephemeral_5m_input_tokens": 0
     },
     "inference_geo": "",
-    "iterations": [],
+    "iterations": [
+      {
+        "input_tokens": 1,
+        "output_tokens": 266,
+        "cache_read_input_tokens": 21112,
+        "cache_creation_input_tokens": 361,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 361
+        },
+        "type": "message"
+      }
+    ],
     "speed": "standard"
   },
   "modelUsage": {
+    "claude-haiku-4-5-20251001": {
+      "inputTokens": 349,
+      "outputTokens": 13,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 0,
+      "webSearchRequests": 0,
+      "costUSD": 0.00041400000000000003,
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000
+    },
     "claude-sonnet-4-6": {
       "inputTokens": 7,
-      "outputTokens": 2234,
-      "cacheReadInputTokens": 77652,
-      "cacheCreationInputTokens": 20987,
+      "outputTokens": 2020,
+      "cacheReadInputTokens": 88468,
+      "cacheCreationInputTokens": 9773,
       "webSearchRequests": 0,
-      "costUSD": 0.13552785,
+      "costUSD": 0.09351014999999999,
       "contextWindow": 200000,
       "maxOutputTokens": 32000
     }
@@ -42,5 +65,5 @@
   "permission_denials": [],
   "terminal_reason": "completed",
   "fast_mode_state": "off",
-  "uuid": "856e9719-d1b5-4153-988f-3585c357bf4f"
+  "uuid": "74645bfa-86f6-417c-9757-8e779261fb78"
 }
