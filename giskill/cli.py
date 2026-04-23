@@ -48,6 +48,24 @@ def build_parser():
         action="store_true",
         help="Print raw JSON payload.",
     )
+    dekart_tools.add_argument(
+        "--names",
+        action="store_true",
+        help="Print only tool names (one per line).",
+    )
+    dekart_tools.add_argument(
+        "--match",
+        help="Case-insensitive substring filter for tool names (for example: file,upload).",
+    )
+    dekart_tools.add_argument(
+        "--schema",
+        help="Print one tool schema by exact name.",
+    )
+    dekart_tools.add_argument(
+        "--arg-keys",
+        action="store_true",
+        help="Print each tool with declared inputSchema property keys.",
+    )
     dekart_resolve_tools = dekart_subparsers.add_parser(
         "resolve-tools",
         help="Resolve required Dekart MCP tool names for report->dataset->file flow.",
@@ -556,8 +574,14 @@ def upload_parts_from_start_result(local_file, start_result, upload_part_endpoin
     }
 
 
-def handle_dekart_tools(raw_json):
+def handle_dekart_tools(raw_json, names_only, match, schema_name, arg_keys):
     """Fetch MCP tool catalog from configured Dekart instance."""
+    if schema_name and names_only:
+        print("Use either --schema or --names, not both.", file=sys.stderr)
+        return 2
+    if raw_json and (names_only or arg_keys):
+        print("Use --json alone (optionally with --match/--schema), not with --names/--arg-keys.", file=sys.stderr)
+        return 2
     try:
         payload = fetch_mcp_tools_payload()
     except urllib.error.HTTPError as exc:
@@ -567,14 +591,50 @@ def handle_dekart_tools(raw_json):
         print(f"MCP tools request failed: {exc}", file=sys.stderr)
         return 1
 
-    if raw_json:
-        pretty_print_json(payload)
-        return 0
-
     tools = payload.get("tools", [])
     if not isinstance(tools, list):
         print("Invalid MCP tools response.", file=sys.stderr)
         return 1
+
+    if match:
+        needle = str(match).lower()
+        tools = [item for item in tools if needle in str(item.get("name", "")).lower()]
+
+    if schema_name:
+        selected = next((item for item in tools if str(item.get("name", "")).strip() == schema_name), None)
+        if not selected:
+            print(f"Tool not found: {schema_name}", file=sys.stderr)
+            return 1
+        if raw_json:
+            pretty_print_json(selected)
+            return 0
+        print(str(selected.get("name", "")).strip())
+        pretty_print_json(selected.get("inputSchema", {}))
+        return 0
+
+    if raw_json:
+        filtered_payload = dict(payload)
+        filtered_payload["tools"] = tools
+        pretty_print_json(filtered_payload)
+        return 0
+
+    if names_only:
+        for item in tools:
+            name = str(item.get("name", "")).strip()
+            if name:
+                print(name)
+        return 0
+
+    if arg_keys:
+        for item in tools:
+            name = str(item.get("name", "")).strip()
+            if not name:
+                continue
+            props = item.get("inputSchema", {}).get("properties", {})
+            keys = sorted(props.keys()) if isinstance(props, dict) else []
+            print(f"{name}: {', '.join(keys)}")
+        return 0
+
     print(f"MCP tools: {len(tools)}")
     for item in tools:
         name = str(item.get("name", "")).strip()
@@ -1000,7 +1060,7 @@ def main():
         if args.dekart_command == "init":
             raise SystemExit(handle_dekart_init(args.no_browser))
         if args.dekart_command == "tools":
-            raise SystemExit(handle_dekart_tools(args.json))
+            raise SystemExit(handle_dekart_tools(args.json, args.names, args.match, args.schema, args.arg_keys))
         if args.dekart_command == "resolve-tools":
             raise SystemExit(handle_dekart_resolve_tools(args.json, args.shell, args.out))
         if args.dekart_command == "call":

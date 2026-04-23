@@ -69,6 +69,30 @@ Print raw JSON tool catalog (including input schemas):
 giskill dekart tools --json
 ```
 
+Print only tool names:
+
+```bash
+giskill dekart tools --names
+```
+
+Filter tools by name substring (case-insensitive):
+
+```bash
+giskill dekart tools --match upload
+```
+
+Print one tool schema by exact name:
+
+```bash
+giskill dekart tools --schema create_file --json
+```
+
+List tool argument keys (discoverable helper for agents):
+
+```bash
+giskill dekart tools --arg-keys
+```
+
 Call any MCP tool dynamically (no hardcoded CLI-side schema):
 
 ```bash
