@@ -186,6 +186,23 @@ URL rules:
 3. Never reconstruct map URL from config-derived host strings.
 4. Never call create-report multiple times just to get URL fields.
 
+## Styling the Map
+
+After upload, review the Dekart snapshot and tune the layer. These rules override Claude's default styling instincts. Full reference: `references/map-styling.md`.
+
+Non-obvious rules:
+
+1. Pick the layer for the question, not the data shape. Point for positions, H3/hexbin for normalized density, Arc for OD pairs, Line for paths, 3D Polygon for vertical magnitude.
+2. Prefer high density. Points radius `2-4` px, lines stroke `0.5-1.5` px, polygon borders `0.5-1` px hairline. Do not clamp `LIMIT` below 50k unless cost forces it.
+3. Do not show the same thing twice. A tuned Point layer already shows density, so skip the Heatmap on top. Skip outline-color when fill encodes the same value.
+4. Encode with multiple channels. Color for the primary variable, radius or stroke width for magnitude, height for a second numerical dimension. Opacity is for overlap, not data.
+5. Palette by data type. Sequential (Viridis, Sunset) for magnitude, Diverging (RdBu) for signed / midpoint data, Qualitative (Set2, Tableau10) for up to 8 categories. Never rainbow / jet.
+6. Match basemap to density. Dark basemap for point clouds and flows, light basemap for choropleths and print.
+7. Layer order bottom-up: basemap, polygon fills, lines, points, labels. Selected features always on top.
+8. Lock the initial view to the zoom where the insight is visible. Do not save a world-view for a city-scale insight.
+
+When uncertain about a specific pixel value or palette, read `references/map-styling.md`.
+
 ## H3 Aggregation
 
 Use H3 when the user requests spatial aggregation, heatmaps, density, or cell-based rollups.
