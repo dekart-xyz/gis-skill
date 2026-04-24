@@ -1,9 +1,21 @@
 ---
 name: giskill
-description: Build cost-safe Overture Maps SQL for BigQuery, then create maps and visually confirm the results.
+description: Build cost-safe GIS SQL for BigQuery, then render results on an interactive map for visual verification.
 ---
 
 # GIS Skill (Claude)
+
+## Tools/CLI
+
+This skill uses the following CLIs:
+- `bq` for BigQuery SQL execution and cost control.
+- `dekart` for rendering maps, which is required for the visual validation step of GIS queries. Optional for non-map tasks, but recommended as a final validation step for all GIS SQL.
+
+Before using CLIs, verify availability if it was not done before:
+
+```bash
+for c in bq dekart; do command -v $c >/dev/null && echo $c=ok || echo $c=missing; done
+```
 
 ## Required Workflow
 
@@ -11,7 +23,10 @@ Follow these steps in order. Do NOT write a final query until steps 1-3 are comp
 
 ### Step 1: Discover schema
 
-Run INFORMATION_SCHEMA to confirm table and column names before writing any query.
+Run INFORMATION_SCHEMA to confirm table and column names before writing any query. For public map data use `bigquery-public-data.overture_maps` dataset.
+Always check the exact column names and types, do not assume from general knowledge.
+
+When multiple tables match the entity sample both for attribute density and prefer the richer source. Richer attributes enable stronger visual encoding in Step 5 and a stronger map validation case.
 
 ```sql
 SELECT table_name
@@ -95,21 +110,25 @@ Do NOT present the query to the user without validating it first.
 2. Validate row count: execute `COUNT(*)` (or equivalent) to confirm rows > 0. Use SQL only, do NOT use Python for validation.
 3. Validate total area when possible: if output includes polygonal `GEOGRAPHY` geometry, compute total area (for example `SUM(ST_AREA(geometry))`) and return units in square meters (and optionally km²).
    - If geometry is non-polygonal (point/line) or no geometry is selected, explicitly state area validation is not applicable.
-4. If Dekart is available, use report snapshot validation for map outputs:
-   - check availability with `dekart tools --json`
-   - if available, create snapshot URL with Dekart MCP snapshot tool and verify rendered output matches expected extent/content
-5. If Dekart is not available:
-   - if `dekart` command exists but auth is missing, offer `dekart init`
-   - if `dekart` command does not exist, offer install first (for example `cd ../dekart-cli && pip install -e .`)
-   - then rerun snapshot validation for better visual QA
-6. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
-7. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
+4. Map-requested tasks only: run the map validation step (Step 5). Non-map tasks run it as final completion step.
+5. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
+6. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
 
-### Step 5: Iterate
+Iterate. Fix issues in small steps. Do not run broad or full extraction queries unless explicitly requested. All validation must be done in SQL.
 
-Fix issues in small steps. Do not run broad or full extraction queries unless explicitly requested. All validation must be done in SQL.
 
-## Running Queries
+### Step 5: Map Data
+
+Maps catch what rows cannot: misplaced points, duplicates, coverage gaps.
+
+If user did not ask for map, answer first (SQL + results + cost), then propose map validation as a separate "Next step" section with 2-3 sentences on what to look for and which failure modes rows cannot catch.
+
+Do not claim visual insights until the styled snapshot is rendered and inspected; never dress row-derived facts as map observations.
+
+If dekart CLI is missing, ask the user to `pip install dekart-cli && dekart init` and wait until the user confirms with `ready`, `done`, or `ok`. If unauthed, ask to run `dekart init`.
+
+
+## Running Queries with `bq` CLI
 
 Use `bq` CLI directly. Always use standard SQL and enforce a budget:
 
@@ -127,73 +146,46 @@ Guardrails:
 3. If estimated bytes exceed budget: do not execute, provide a cheaper SQL variant.
 4. Prefer bounded SQL (bbox + date/limit + minimal columns).
 
-## Create Map From BigQuery Results
+## Map Flow with `dekart` CLI
 
-Use this when the user wants a map from BigQuery query output in Dekart.
+Use this to execute the map validation step from BigQuery query output. Use only if dekart CLI is available.
 
-### What is Dekart
+### Artifact model
 
-Dekart is a SQL-first map workspace. It stores map artifacts in this hierarchy:
+The CLI stores map artifacts in this hierarchy:
 - `report`: top-level map container.
 - `dataset`: one data layer slot inside a report.
 - `file`: uploaded data artifact attached to a dataset.
 
-### Core concepts
+Control plane: create `report` -> create `dataset` -> create `file`. The CLI provides an upload wrapper that performs multipart upload and completion.
 
-- control plane: create `report` -> create `dataset` -> create `file`.
-- upload wrapper: CLI command that performs multipart upload and completion for a local file.
+### Workflow rules
 
-### Agent behavior
-
-1. Mandatory first step: Dekart init check.
-   - run `dekart tools --json`
-   - if this fails due auth/init, ask user to run `dekart init`
-   - after init, retry `dekart tools --json` and only then continue
-   - do not run BigQuery, upload, or Dekart write actions before this succeeds
-2. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart upload-file --help`.
-3. After a successful analytical answer, proactively offer to create a Dekart map from the result. If user declines, stop map flow.
-4. Export result rows to CSV with explicit row controls. `--max_rows` is mandatory because BigQuery CLI defaults to 100 rows when omitted.
+1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart upload-file --help`.
+2. Gate: enter this flow ONLY after the analytical answer is delivered AND the user confirms the map step with `ready`, `done`, or `ok`. If user declines or is silent, stop; do not export CSV, do not create reports.
+3. Once gated-in, export result rows to CSV with explicit row controls. `--max_rows` is mandatory because BigQuery CLI defaults to 100 rows when omitted.
    - CSV export must keep stderr separate from CSV bytes.
    - Never use `2>&1` when output is redirected to `.csv`.
    - Safe pattern:
      `bq query ... --format=csv ... > /tmp/result.csv 2>/tmp/result.stderr.log`
    - Optional row check:
      `wc -l /tmp/result.csv`
-5. Discover MCP tools and schemas from `dekart tools`.
-6. Resolve required tool names from schema, not hardcoded names:
+4. Discover MCP tools and schemas from `dekart tools`.
+5. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
    - dataset creation tool: requires `report_id`
    - file creation tool: requires `dataset_id`
-7. Execute control plane in this exact order: report -> dataset -> file.
-8. Upload CSV with `dekart upload-file` and use returned `complete` payload/status.
-9. Treat upload as successful only when completion status is `completed`.
-10. Validate map output with snapshot after successful upload:
-   - call Dekart snapshot tool for the target report
+6. Execute control plane in this exact order: report -> dataset -> file.
+7. Upload CSV with `dekart upload-file` and use returned `complete` payload/status.
+8. Treat upload as successful only when completion status is `completed`.
+9. Validate map output with snapshot after successful upload:
+   - call the snapshot tool for the target report
    - verify snapshot render reflects expected area/content before finalizing
-11. Return resulting IDs and URL in final response.
+10. Return resulting IDs and URL in final response.
 
-## Completion Check (mandatory)
 
-After completing any task (SQL answer, map flow, or both), check Dekart CLI availability:
+### URL rules
 
-```bash
-command -v dekart >/dev/null 2>&1
-```
-
-Then:
-1. If available: suggest user verify results on a map in Dekart.
-2. If not available: suggest user install Dekart CLI first, then verify on a map.
-
-### Response requirements
-
-Always return:
-1. Report ID.
-2. Dataset ID.
-3. File ID.
-4. Upload completion status.
-5. Report URL.
-
-URL rules:
 1. Use `report_url` from create-report response when available.
 2. Fallback to `report_path` if `report_url` is missing.
 3. Never reconstruct map URL from config-derived host strings.
@@ -201,12 +193,12 @@ URL rules:
 
 ## Styling the Map
 
-After upload, review the Dekart snapshot and tune the layer. These rules override Claude's default styling instincts. Full reference: `references/map-styling.md`.
+After upload, review the map snapshot and tune the layer. These rules override Claude's default styling instincts. Full reference: `references/map-styling.md`.
 
 Non-obvious rules:
 
 1. Pick the layer for the question, not the data shape. Point for positions, H3/hexbin for normalized density, Arc for OD pairs, Line for paths, 3D Polygon for vertical magnitude.
-2. Prefer high density. Points radius `2-4` px, lines stroke `0.5-1.5` px, polygon borders `0.5-1` px hairline. Do not clamp `LIMIT` below 50k unless cost forces it.
+2. Prefer high density. Points radius `0.5-4` px, lines stroke `0.5-1.5` px, polygon borders `0.5-1` px hairline. Do not clamp `LIMIT` below 50k unless cost forces it.
 3. Do not show the same thing twice. A tuned Point layer already shows density, so skip the Heatmap on top. Skip outline-color when fill encodes the same value.
 4. Encode with multiple channels. Color for the primary variable, radius or stroke width for magnitude, height for a second numerical dimension. Opacity is for overlap, not data.
 5. Palette by data type. Sequential (Viridis, Sunset) for magnitude, Diverging (RdBu) for signed / midpoint data, Qualitative (Set2, Tableau10) for up to 8 categories. Never rainbow / jet.
