@@ -1,3 +1,3 @@
-"""GIS Skill - Create maps and answer questions from your data."""
+"""GIS Skill installer package."""
 
 __version__ = "0.1.0"

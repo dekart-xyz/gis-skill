@@ -1,6 +1,6 @@
 ---
 name: giskill
-description: Build cost-safe Overture Maps SQL for BigQuery, then create Dekart maps by uploading query results through giskill CLI + Dekart MCP.
+description: Build cost-safe Overture Maps SQL for BigQuery, then create maps and visually confirm the results.
 ---
 
 # GIS Skill (Claude)
@@ -96,10 +96,11 @@ Do NOT present the query to the user without validating it first.
 3. Validate total area when possible: if output includes polygonal `GEOGRAPHY` geometry, compute total area (for example `SUM(ST_AREA(geometry))`) and return units in square meters (and optionally km²).
    - If geometry is non-polygonal (point/line) or no geometry is selected, explicitly state area validation is not applicable.
 4. If Dekart is available, use report snapshot validation for map outputs:
-   - check availability with `giskill dekart tools --json`
+   - check availability with `dekart tools --json`
    - if available, create snapshot URL with Dekart MCP snapshot tool and verify rendered output matches expected extent/content
-5. If Dekart is not available, continue SQL validation and explicitly offer:
-   - `giskill dekart init`
+5. If Dekart is not available:
+   - if `dekart` command exists but auth is missing, offer `dekart init`
+   - if `dekart` command does not exist, offer install first (for example `cd ../dekart-cli && pip install -e .`)
    - then rerun snapshot validation for better visual QA
 6. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
 7. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
@@ -145,11 +146,11 @@ Dekart is a SQL-first map workspace. It stores map artifacts in this hierarchy:
 ### Agent behavior
 
 1. Mandatory first step: Dekart init check.
-   - run `giskill dekart tools --json`
-   - if this fails due auth/init, ask user to run `giskill dekart init`
-   - after init, retry `giskill dekart tools --json` and only then continue
+   - run `dekart tools --json`
+   - if this fails due auth/init, ask user to run `dekart init`
+   - after init, retry `dekart tools --json` and only then continue
    - do not run BigQuery, upload, or Dekart write actions before this succeeds
-2. Use CLI help for current command behavior: `giskill dekart --help`, `giskill dekart tools --help`, `giskill dekart call --help`, `giskill dekart upload-file --help`.
+2. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart upload-file --help`.
 3. After a successful analytical answer, proactively offer to create a Dekart map from the result. If user declines, stop map flow.
 4. Export result rows to CSV with explicit row controls. `--max_rows` is mandatory because BigQuery CLI defaults to 100 rows when omitted.
    - CSV export must keep stderr separate from CSV bytes.
@@ -158,18 +159,30 @@ Dekart is a SQL-first map workspace. It stores map artifacts in this hierarchy:
      `bq query ... --format=csv ... > /tmp/result.csv 2>/tmp/result.stderr.log`
    - Optional row check:
      `wc -l /tmp/result.csv`
-5. Discover MCP tools and schemas from `giskill dekart tools`.
+5. Discover MCP tools and schemas from `dekart tools`.
 6. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
    - dataset creation tool: requires `report_id`
    - file creation tool: requires `dataset_id`
 7. Execute control plane in this exact order: report -> dataset -> file.
-8. Upload CSV with `giskill dekart upload-file` and use returned `complete` payload/status.
+8. Upload CSV with `dekart upload-file` and use returned `complete` payload/status.
 9. Treat upload as successful only when completion status is `completed`.
 10. Validate map output with snapshot after successful upload:
    - call Dekart snapshot tool for the target report
    - verify snapshot render reflects expected area/content before finalizing
 11. Return resulting IDs and URL in final response.
+
+## Completion Check (mandatory)
+
+After completing any task (SQL answer, map flow, or both), check Dekart CLI availability:
+
+```bash
+command -v dekart >/dev/null 2>&1
+```
+
+Then:
+1. If available: suggest user verify results on a map in Dekart.
+2. If not available: suggest user install Dekart CLI first, then verify on a map.
 
 ### Response requirements
 

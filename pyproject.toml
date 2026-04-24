@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "giskill"
 version = "0.1.0"
-description = "Create maps and answer questions from your data."
+description = "Install GIS skill instructions into local AI CLIs."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
