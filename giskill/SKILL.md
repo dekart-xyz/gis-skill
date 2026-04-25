@@ -1,6 +1,6 @@
 ---
 name: giskill
-description: Build cost-safe GIS SQL for BigQuery, then render results on an interactive map for visual verification.
+description: Build cost-safe GIS SQL for BigQuery. Render results on an interactive map only when the user explicitly asks for a map.
 ---
 
 # GIS Skill (Claude)
@@ -9,7 +9,7 @@ description: Build cost-safe GIS SQL for BigQuery, then render results on an int
 
 This skill uses the following CLIs:
 - `bq` for BigQuery SQL execution and cost control.
-- `dekart` for rendering maps, which is required for the visual validation step of GIS queries. Optional for non-map tasks, but recommended as a final validation step for all GIS SQL.
+- `dekart` for rendering maps. Used ONLY when the user explicitly asks for a map. Never run map flow for SQL-only questions.
 
 Before using CLIs, verify availability if it was not done before:
 
@@ -110,7 +110,6 @@ Do NOT present the query to the user without validating it first.
 2. Validate row count: execute `COUNT(*)` (or equivalent) to confirm rows > 0. Use SQL only, do NOT use Python for validation.
 3. Validate total area when possible: if output includes polygonal `GEOGRAPHY` geometry, compute total area (for example `SUM(ST_AREA(geometry))`) and return units in square meters (and optionally km²).
    - If geometry is non-polygonal (point/line) or no geometry is selected, explicitly state area validation is not applicable.
-4. Map-requested tasks only: run the map validation step (Step 5). Non-map tasks run it as final completion step.
 5. If validation fails debug before presenting. Check bbox direction, value truncation, filter logic, and column types (e.g. `admin_level` is INT64, not STRING).
 6. If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
 
@@ -122,6 +121,8 @@ Iterate. Fix issues in small steps. Do not run broad or full extraction queries 
 Maps catch what rows cannot: misplaced points, duplicates, coverage gaps.
 
 If user did not ask for map, answer first (SQL + results + cost), then propose map validation as a separate "Next step" section with 2-3 sentences on what to look for and which failure modes rows cannot catch.
+
+Do not start map workflow without user request.
 
 Do not claim visual insights until the styled snapshot is rendered and inspected; never dress row-derived facts as map observations.
 
@@ -166,10 +167,8 @@ Control plane: create `report` -> create `dataset` -> create `file`. The CLI pro
 3. Once gated-in, export result rows to CSV with explicit row controls. `--max_rows` is mandatory because BigQuery CLI defaults to 100 rows when omitted.
    - CSV export must keep stderr separate from CSV bytes.
    - Never use `2>&1` when output is redirected to `.csv`.
-   - Safe pattern:
-     `bq query ... --format=csv ... > /tmp/result.csv 2>/tmp/result.stderr.log`
-   - Optional row check:
-     `wc -l /tmp/result.csv`
+   - Preferred pattern (no temp files copies):
+     `bq query ... --format=csv --max_rows=50000 'SELECT ...' | dekart upload-file --stdin --file-id <file_id> --name result.csv --mime-type text/csv`
 4. Discover MCP tools and schemas from `dekart tools`.
 5. Resolve required tool names from schema, not hardcoded names:
    - report creation tool: creates a report container
@@ -177,11 +176,28 @@ Control plane: create `report` -> create `dataset` -> create `file`. The CLI pro
    - file creation tool: requires `dataset_id`
 6. Execute control plane in this exact order: report -> dataset -> file.
 7. Upload CSV with `dekart upload-file` and use returned `complete` payload/status.
+   - Prefer stdin upload to avoid intermediate file copies:
+     `bq query ... --format=csv --max_rows=50000 'SELECT ...' | dekart upload-file --stdin --file-id <file_id> --name result.csv --mime-type text/csv`
+   - File-based fallback:
+     `dekart upload-file --file /tmp/result.csv --file-id <file_id>`
 8. Treat upload as successful only when completion status is `completed`.
 9. Validate map output with snapshot after successful upload:
-   - call the snapshot tool for the target report
+   - run CLI snapshot command for the target report:
+     `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
+   - inspect the saved local PNG output from that command; do not use direct PNG URLs/links
    - verify snapshot render reflects expected area/content before finalizing
 10. Return resulting IDs and URL in final response.
+
+### Failure handling
+* Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.
+* If create-report or create-dataset returns 404 it likely issue with token or auth. Ask user to re-run `dekart init` and confirm before retrying.
+* Snapshot equals browser. If the snapshot looks wrong, the config is wrong.
+* If remote snapshot fails with timeout (for example HTTP 504 / `snapshot timeout`), ask the user to enable local snapshots:
+  `dekart snapshot-local install`
+  Then retry snapshot with `dekart snapshot --report-id <report_id>`.
+* Datasets auto-style by default. Kepler would apply a default styling if no config is provided for dataset provided.
+* Never call Dekart HTTP, config files, or anything outside the documented dekart CLI.
+
 
 
 ### URL rules
