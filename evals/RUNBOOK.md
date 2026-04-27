@@ -21,7 +21,7 @@ Assertions are plain strings only.
 ## One-command Eval
 
 ```bash
-python3 evals/run.py
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high
 ```
 
 By default, the runner prints a live trace of Claude IO (prompt, tool calls, tool outputs, final result) so you can see exactly what is happening.
@@ -29,13 +29,13 @@ By default, the runner prints a live trace of Claude IO (prompt, tool calls, too
 Quiet mode:
 
 ```bash
-python3 evals/run.py --no-show-io
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --no-show-io
 ```
 
 Adjust trace truncation length:
 
 ```bash
-python3 evals/run.py --io-max-chars 2000
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --io-max-chars 2000
 ```
 
 Default permission behavior for this command:
@@ -83,14 +83,14 @@ Custom output dir:
 python3 evals/run.py --out-dir evals/results/manual-run
 ```
 
-Model override:
+Model and thinking level are required:
 
 ```bash
-python3 evals/run.py --model sonnet
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level xhigh
 ```
 
 Safer permissions (may re-introduce approval prompts):
 
 ```bash
-python3 evals/run.py --safe-mode --permission-mode auto
+python3 evals/run.py --model claude-sonnet-4-6 --thinking-level high --safe-mode --permission-mode auto
 ```

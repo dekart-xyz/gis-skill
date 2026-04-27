@@ -20,7 +20,13 @@ def parse_args():
     parser.add_argument("--evals", default="evals/evals.json", help="Path to evals.json.")
     parser.add_argument("--out-dir", default="evals/results/latest", help="Output directory for run.")
     parser.add_argument("--claude-bin", default="claude", help="Claude CLI binary.")
-    parser.add_argument("--model", default="", help="Optional model override.")
+    parser.add_argument("--model", required=True, help="Required model name for eval run.")
+    parser.add_argument(
+        "--thinking-level",
+        required=True,
+        choices=["low", "medium", "high", "xhigh", "max"],
+        help="Required Claude effort level for eval run.",
+    )
     parser.add_argument(
         "--case",
         default="",
@@ -142,6 +148,7 @@ def print_event_trace(event, io_max_chars):
 def run_claude_stream(
     claude_bin,
     model,
+    thinking_level,
     prompt,
     permission_mode,
     allowed_tools,
@@ -153,8 +160,8 @@ def run_claude_stream(
 ):
     """Run Claude in stream-json mode and return events + final result event."""
     cmd = [claude_bin, "-p", "--verbose", "--output-format", "stream-json", prompt]
-    if model:
-        cmd[1:1] = ["--model", model]
+    cmd[1:1] = ["--model", model]
+    cmd[1:1] = ["--effort", thinking_level]
     if permission_mode:
         cmd[1:1] = ["--permission-mode", permission_mode]
     if allowed_tools:
@@ -412,6 +419,7 @@ def main():
         gen_events, gen_result = run_claude_stream(
             claude_path,
             args.model,
+            args.thinking_level,
             skill_prompt,
             args.permission_mode,
             args.allowed_tools,
@@ -429,6 +437,7 @@ def main():
         grade_events, grade_result = run_claude_stream(
             claude_path,
             args.model,
+            args.thinking_level,
             assertion_prompt,
             args.permission_mode,
             args.allowed_tools,
@@ -487,6 +496,10 @@ def main():
 
     benchmark = {
         "skill_name": skill_name,
+        "run_config": {
+            "model": args.model,
+            "thinking_level": args.thinking_level,
+        },
         "cases": case_summaries,
         "summary": {
             "passed_assertions": total_passed,
