@@ -17,6 +17,10 @@ This installs to:
 
 `~/.claude/skills/giskill/SKILL.md`
 
+and copies references to:
+
+`~/.claude/skills/giskill/references/`
+
 ## Dekart CLI
 
 GIS skill uses the separate `dekart` CLI for Dekart auth, MCP tools, and file upload workflows.

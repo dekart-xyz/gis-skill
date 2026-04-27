@@ -1,9 +1,11 @@
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 ROOT_SKILL_FILE = PACKAGE_ROOT / "SKILL.md"
+ROOT_REFERENCES_DIR = PACKAGE_ROOT / "references"
 
 
 def build_parser():
@@ -21,7 +23,7 @@ def build_parser():
 
 
 def install_claude_skill():
-    """Install giskill SKILL.md into Claude skills directory."""
+    """Install giskill SKILL.md and references into Claude skills directory."""
     skill_dir = Path.home() / ".claude" / "skills" / "giskill"
     skill_dir.mkdir(parents=True, exist_ok=True)
 
@@ -32,8 +34,18 @@ def install_claude_skill():
 
     skill_source = ROOT_SKILL_FILE.read_text(encoding="utf-8")
     skill_file.write_text(skill_source, encoding="utf-8")
+    installed_references = 0
+
+    if ROOT_REFERENCES_DIR.exists() and ROOT_REFERENCES_DIR.is_dir():
+        target_references_dir = skill_dir / "references"
+        if target_references_dir.exists():
+            shutil.rmtree(target_references_dir)
+        shutil.copytree(ROOT_REFERENCES_DIR, target_references_dir)
+        installed_references = sum(1 for path in target_references_dir.rglob("*") if path.is_file())
 
     print(f"Installed Claude skill at {skill_file}")
+    if installed_references:
+        print(f"Installed references at {skill_dir / 'references'} ({installed_references} file(s))")
     return 0
 
 
