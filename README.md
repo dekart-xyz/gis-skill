@@ -1,10 +1,25 @@
 # geosql
 Create maps and answer questions from your data.
 
+Build instructions: `RUNBOOK.md`
+
 ## Install geosql (skill installer only)
 
 ```bash
 pip install -e .
+```
+
+## Install via Skills CLI
+
+```bash
+npx skills add dekart-xyz/geosql
+```
+
+`npx skills add` uses the repository `geosql.skill` package.  
+That package is generated from canonical sources in `geosql/` (no duplicated skill content):
+
+```bash
+python3 scripts/build_skill_package.py
 ```
 
 ## Install skill
