@@ -7,19 +7,37 @@ Create maps and answer questions from your data.
 pip install -e .
 ```
 
-## Install Claude skill
+## Install skill
+
+Interactive (recommended):
+
+```bash
+geosql
+```
+
+Or explicit target:
 
 ```bash
 geosql install claude
+geosql install codex
+geosql install all
 ```
 
-This installs to:
+Claude install path:
 
 `~/.claude/skills/geosql/SKILL.md`
 
 and copies references to:
 
 `~/.claude/skills/geosql/references/`
+
+Codex install path:
+
+`~/.codex/skills/geosql/SKILL.md`
+
+and copies references to:
+
+`~/.codex/skills/geosql/references/`
 
 ## Dekart CLI
 

@@ -13,7 +13,9 @@ pip install -e .
 ```bash
 python -m geosql --help
 python -m geosql install claude
-geosql install claude
+python -m geosql install codex
+geosql
+geosql install all
 ```
 
 ## Dekart runtime CLI
