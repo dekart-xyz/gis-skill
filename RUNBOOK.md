@@ -83,11 +83,14 @@ The `pre-push` hook runs only on `main` and performs:
 3. Build package and publish to PyPI.
 4. Exit with non-zero so you run `git push` again and include the new commits.
 
-Required environment variable:
+Optional environment variable:
 
 ```bash
 export PYPI_API_TOKEN='pypi-...'
 ```
+
+If `PYPI_API_TOKEN` is not set, hook falls back to your local Twine auth
+(`~/.pypirc`, keyring, or interactive prompt).
 
 Recommended push flow on `main`:
 

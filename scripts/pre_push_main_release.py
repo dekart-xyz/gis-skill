@@ -73,29 +73,17 @@ def current_branch():
     return git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
 
 
-def has_pypi_token():
-    return bool((os.environ.get("PYPI_API_TOKEN") or "").strip())
-
-
 def publish_to_pypi():
-    if not has_pypi_token():
-        raise RuntimeError("Missing PYPI_API_TOKEN in environment")
     run([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "build", "twine"])
     run([sys.executable, "-m", "build"])
     dist_files = sorted(glob.glob(str(ROOT / "dist" / "*")))
     if not dist_files:
         raise RuntimeError("No dist artifacts found after build")
-    run([
-        sys.executable,
-        "-m",
-        "twine",
-        "upload",
-        *dist_files,
-        "-u",
-        "__token__",
-        "-p",
-        os.environ["PYPI_API_TOKEN"],
-    ])
+    token = (os.environ.get("PYPI_API_TOKEN") or "").strip()
+    cmd = [sys.executable, "-m", "twine", "upload", *dist_files]
+    if token:
+        cmd.extend(["-u", "__token__", "-p", token])
+    run(cmd)
 
 
 def main():
