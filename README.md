@@ -1,7 +1,7 @@
-# gis-skill
+# geosql
 Create maps and answer questions from your data.
 
-## Install giskill (skill installer only)
+## Install geosql (skill installer only)
 
 ```bash
 pip install -e .
@@ -10,20 +10,20 @@ pip install -e .
 ## Install Claude skill
 
 ```bash
-giskill install claude
+geosql install claude
 ```
 
 This installs to:
 
-`~/.claude/skills/giskill/SKILL.md`
+`~/.claude/skills/geosql/SKILL.md`
 
 and copies references to:
 
-`~/.claude/skills/giskill/references/`
+`~/.claude/skills/geosql/references/`
 
 ## Dekart CLI
 
-GIS skill uses the separate `dekart` CLI for Dekart auth, MCP tools, and file upload workflows.
+GeoSQL uses the separate `dekart` CLI for Dekart auth, MCP tools, and file upload workflows.
 
 Install `dekart` from the new repo:
 

@@ -5,7 +5,7 @@
     "content": [
       {
         "type": "thinking",
-        "text": "The user wants SQL for London boundaries. I need to follow the GIS skill workflow:\n\n1. Discover schema\n2. Resolve the target area (London)\n3. Draft the query\n4. Validate\n5. Iterate\n\nLet me start by discovering the schema and resolving London's boundaries."
+        "text": "The user wants SQL for London boundaries. I need to follow the GeoSQL workflow:\n\n1. Discover schema\n2. Resolve the target area (London)\n3. Draft the query\n4. Validate\n5. Iterate\n\nLet me start by discovering the schema and resolving London's boundaries."
       }
     ]
   },
@@ -293,7 +293,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart tools --json 2>&1 | head -20",
+          "command": "geosql dekart tools --json 2>&1 | head -20",
           "description": "Check Dekart availability"
         }
       }

@@ -3,17 +3,17 @@
 ## Setup
 
 ```bash
-git clone https://github.com/dekart-xyz/gis-skill.git
-cd gis-skill
+git clone https://github.com/dekart-xyz/geosql.git
+cd geosql
 pip install -e .
 ```
 
 ## Test locally
 
 ```bash
-python -m giskill --help
-python -m giskill install claude
-giskill install claude
+python -m geosql --help
+python -m geosql install claude
+geosql install claude
 ```
 
 ## Dekart runtime CLI

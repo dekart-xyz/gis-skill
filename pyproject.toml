@@ -3,18 +3,18 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "giskill"
+name = "geosql"
 version = "0.1.0"
-description = "Install GIS skill instructions into local AI CLIs."
+description = "Install GeoSQL instructions into local AI CLIs."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.8"
 authors = [{name = "Dekart XYZ"}]
 
 [project.scripts]
-giskill = "giskill.cli:main"
+geosql = "geosql.cli:main"
 
 [tool.hatch.build.targets.wheel]
 include = [
-  "/giskill/**",
+  "/geosql/**",
 ]

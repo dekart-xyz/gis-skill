@@ -1,1 +1,1 @@
-/giskill give me sql for paris boundries
+/geosql give me sql for paris boundries

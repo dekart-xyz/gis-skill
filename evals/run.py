@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run giskill eval cases through Claude CLI and grade assertions with the same session."""
+"""Run geosql eval cases through Claude CLI and grade assertions with the same session."""
 
 import argparse
 import json

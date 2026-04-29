@@ -6,7 +6,7 @@ This runbook executes the full eval cycle in one command using Claude CLI.
 
 For each case in `evals/evals.json`:
 
-1. Runs the task with `/giskill ...`.
+1. Runs the task with `/geosql ...`.
 2. In the same Claude session, asks Claude to validate all assertions.
 3. Claude can run `bq`/`gcloud` commands while validating assertions.
 4. Saves grading and logs.
@@ -16,7 +16,7 @@ Assertions are plain strings only.
 ## Prerequisites
 
 - Claude CLI installed and authenticated (`claude --help` works).
-- You are in `gis-skill`.
+- You are in `geosql`.
 
 ## One-command Eval
 

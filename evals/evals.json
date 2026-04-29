@@ -1,5 +1,5 @@
 {
-  "skill_name": "giskill",
+  "skill_name": "geosql",
   "evals": [
     {
       "id": "london-boroughs",
@@ -23,7 +23,7 @@
         "prompt": "find berlin administrative boundaries in bigquery and create a dekart map from the result",
         "assertions": [
           "Agent performed Dekart init check first using dekart tools --json before any Dekart write/upload action.",
-          "Agent used giskill to upload the query result to Dekart and create a map.",
+          "Agent used geosql to upload the query result to Dekart and create a map.",
           "Agent returned user map URL after map creation."
         ]
       }

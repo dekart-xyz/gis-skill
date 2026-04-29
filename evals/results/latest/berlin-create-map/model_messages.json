@@ -27,7 +27,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart tools --json 2>&1 | head -50",
+          "command": "geosql dekart tools --json 2>&1 | head -50",
           "description": "Check Dekart availability"
         }
       }
@@ -379,7 +379,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart call create_report '{}' 2>&1",
+          "command": "geosql dekart call create_report '{}' 2>&1",
           "description": "Create Dekart report"
         }
       }
@@ -393,7 +393,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart call --name create_report --args '{}' --json 2>&1",
+          "command": "geosql dekart call --name create_report --args '{}' --json 2>&1",
           "description": "Create Dekart report"
         }
       }
@@ -407,7 +407,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart call --name create_dataset --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json 2>&1",
+          "command": "geosql dekart call --name create_dataset --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json 2>&1",
           "description": "Create Dekart dataset"
         }
       }
@@ -421,7 +421,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart tools --json 2>&1 | python3 -c \"import json,sys; tools=json.load(sys.stdin)['tools']; [print(t['name'], json.dumps(t['inputSchema']['properties'])) for t in tools if 'file' in t['name'].lower()]\"",
+          "command": "geosql dekart tools --json 2>&1 | python3 -c \"import json,sys; tools=json.load(sys.stdin)['tools']; [print(t['name'], json.dumps(t['inputSchema']['properties'])) for t in tools if 'file' in t['name'].lower()]\"",
           "description": "Check create_file tool schema"
         }
       }
@@ -435,7 +435,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart upload-file --help 2>&1",
+          "command": "geosql dekart upload-file --help 2>&1",
           "description": "Check upload-file CLI help"
         }
       }
@@ -449,7 +449,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart call --name create_file --args '{\"dataset_id\": \"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\"}' --json 2>&1",
+          "command": "geosql dekart call --name create_file --args '{\"dataset_id\": \"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\"}' --json 2>&1",
           "description": "Create Dekart file metadata"
         }
       }
@@ -463,7 +463,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json 2>&1",
+          "command": "geosql dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json 2>&1",
           "description": "Upload Berlin admin CSV to Dekart"
         }
       }
@@ -487,7 +487,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart tools --json 2>&1 | python3 -c \"import json,sys; tools=json.load(sys.stdin)['tools']; [print(t['name']) for t in tools if 'snapshot' in t['name'].lower()]\"",
+          "command": "geosql dekart tools --json 2>&1 | python3 -c \"import json,sys; tools=json.load(sys.stdin)['tools']; [print(t['name']) for t in tools if 'snapshot' in t['name'].lower()]\"",
           "description": "Find snapshot tool"
         }
       }
@@ -501,7 +501,7 @@
         "type": "tool_use",
         "name": "Bash",
         "input": {
-          "command": "giskill dekart call --name create_report_snapshot --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json 2>&1",
+          "command": "geosql dekart call --name create_report_snapshot --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json 2>&1",
           "description": "Create Dekart map snapshot for validation"
         }
       }
@@ -563,7 +563,7 @@
     "content": [
       {
         "type": "thinking",
-        "text": "The user wants me to validate assertions about my previous actions in this session. Let me review what I did and validate each assertion.\n\n1. \"Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.\"\n- Yes, I ran `giskill dekart tools --json` as the very first command, before any BigQuery queries or Dekart write actions.\n\n2. \"Agent used giskill to upload the query result to Dekart and create a map.\"\n- Yes, I used `giskill dekart upload-file` to upload the CSV, and created a report/dataset/file via `giskill dekart call`.\n\n\n3. \"Agent returned user map URL after map creation.\"\n- Yes, I returned the map URL in the final response, and I can verify all of these actions directly from the conversation transcript without needing additional queries."
+        "text": "The user wants me to validate assertions about my previous actions in this session. Let me review what I did and validate each assertion.\n\n1. \"Agent performed Dekart init check first using geosql dekart tools --json before any Dekart write/upload action.\"\n- Yes, I ran `geosql dekart tools --json` as the very first command, before any BigQuery queries or Dekart write actions.\n\n2. \"Agent used geosql to upload the query result to Dekart and create a map.\"\n- Yes, I used `geosql dekart upload-file` to upload the CSV, and created a report/dataset/file via `geosql dekart call`.\n\n\n3. \"Agent returned user map URL after map creation.\"\n- Yes, I returned the map URL in the final response, and I can verify all of these actions directly from the conversation transcript without needing additional queries."
       }
     ]
   },
@@ -573,7 +573,7 @@
     "content": [
       {
         "type": "text",
-        "text": "```json\n{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.\",\n      \"passed\": true,\n      \"evidence\": \"The very first two commands in the session were run in parallel: `giskill dekart tools --json` and the BigQuery INFORMATION_SCHEMA table list. The Dekart tools check returned successfully before any create_report, create_dataset, create_file, or upload-file calls were made.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"giskill dekart tools --json returned tools list including create_report, create_dataset, create_file, etc. \u2014 confirmed before any write action.\"\n    },\n    {\n      \"assertion\": \"Agent used giskill to upload the query result to Dekart and create a map.\",\n      \"passed\": true,\n      \"evidence\": \"Agent ran: (1) giskill dekart call --name create_report, (2) giskill dekart call --name create_dataset, (3) giskill dekart call --name create_file, (4) giskill dekart upload-file --file /tmp/berlin_admin.csv. Upload completed with status='completed', size=661572 bytes.\",\n      \"commands_run\": [\n        \"giskill dekart call --name create_report --args '{}' --json\",\n        \"giskill dekart call --name create_dataset --args '{\\\"report_id\\\": \\\"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\\\"}' --json\",\n        \"giskill dekart call --name create_file --args '{\\\"dataset_id\\\": \\\"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\\\"}' --json\",\n        \"giskill dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json\"\n      ],\n      \"result_snippet\": \"{\\\"complete\\\": {\\\"file_id\\\": \\\"6e379e96-7501-402a-813a-285c8377b7af\\\", \\\"status\\\": \\\"completed\\\", \\\"size\\\": \\\"661572\\\"}}\"\n    },\n    {\n      \"assertion\": \"Agent returned user map URL after map creation.\",\n      \"passed\": true,\n      \"evidence\": \"Final response included the report URL from the create_report response: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e, sourced from report_url field (not reconstructed from config).\",\n      \"commands_run\": [],\n      \"result_snippet\": \"Report URL: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"\n    }\n  ],\n  \"summary\": {\n    \"passed\": 3,\n    \"failed\": 0,\n    \"total\": 3,\n    \"pass_rate\": 1.0\n  }\n}\n```"
+        "text": "```json\n{\n  \"assertion_results\": [\n    {\n      \"assertion\": \"Agent performed Dekart init check first using geosql dekart tools --json before any Dekart write/upload action.\",\n      \"passed\": true,\n      \"evidence\": \"The very first two commands in the session were run in parallel: `geosql dekart tools --json` and the BigQuery INFORMATION_SCHEMA table list. The Dekart tools check returned successfully before any create_report, create_dataset, create_file, or upload-file calls were made.\",\n      \"commands_run\": [],\n      \"result_snippet\": \"geosql dekart tools --json returned tools list including create_report, create_dataset, create_file, etc. \u2014 confirmed before any write action.\"\n    },\n    {\n      \"assertion\": \"Agent used geosql to upload the query result to Dekart and create a map.\",\n      \"passed\": true,\n      \"evidence\": \"Agent ran: (1) geosql dekart call --name create_report, (2) geosql dekart call --name create_dataset, (3) geosql dekart call --name create_file, (4) geosql dekart upload-file --file /tmp/berlin_admin.csv. Upload completed with status='completed', size=661572 bytes.\",\n      \"commands_run\": [\n        \"geosql dekart call --name create_report --args '{}' --json\",\n        \"geosql dekart call --name create_dataset --args '{\\\"report_id\\\": \\\"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\\\"}' --json\",\n        \"geosql dekart call --name create_file --args '{\\\"dataset_id\\\": \\\"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\\\"}' --json\",\n        \"geosql dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json\"\n      ],\n      \"result_snippet\": \"{\\\"complete\\\": {\\\"file_id\\\": \\\"6e379e96-7501-402a-813a-285c8377b7af\\\", \\\"status\\\": \\\"completed\\\", \\\"size\\\": \\\"661572\\\"}}\"\n    },\n    {\n      \"assertion\": \"Agent returned user map URL after map creation.\",\n      \"passed\": true,\n      \"evidence\": \"Final response included the report URL from the create_report response: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e, sourced from report_url field (not reconstructed from config).\",\n      \"commands_run\": [],\n      \"result_snippet\": \"Report URL: http://localhost:3000/reports/bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"\n    }\n  ],\n  \"summary\": {\n    \"passed\": 3,\n    \"failed\": 0,\n    \"total\": 3,\n    \"pass_rate\": 1.0\n  }\n}\n```"
       }
     ]
   }

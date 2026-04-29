@@ -1,14 +1,14 @@
-# AGENTS.md instructions for gis-skill
+# AGENTS.md instructions for geosql
 
 ## Skills
 A skill is a set of local instructions to follow that is stored in a `SKILL.md` file.
 
 ### Available skills
-- giskill: Build and optionally execute cost-safe Overture Maps SQL for BigQuery with dry-run budget checks. Use when users need map-ready SQL, executed results, or over-budget fallback options. (file: giskill/SKILL.md)
+- geosql: Build and optionally execute cost-safe Overture Maps SQL for BigQuery with dry-run budget checks. Use when users need map-ready SQL, executed results, or over-budget fallback options. (file: geosql/SKILL.md)
 
 ### How to use skills
-- Trigger rules: If the user names the skill (`$giskill`) or the request clearly matches its description, use it for that turn.
-- Loading: Open `giskill/SKILL.md` and follow it.
+- Trigger rules: If the user names the skill (`$geosql`) or the request clearly matches its description, use it for that turn.
+- Loading: Open `geosql/SKILL.md` and follow it.
 - Scope: Do not carry this skill across turns unless re-mentioned or clearly required by the new request.
 
 ## References

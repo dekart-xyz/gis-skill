@@ -1,6 +1,6 @@
 ---
 name: geosql
-description: Build cost-safe GIS SQL for BigQuery or Snowflake. Render results on an interactive map only when the user explicitly asks for a map.
+description: Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.
 ---
 
 # GeoSQL (Claude)

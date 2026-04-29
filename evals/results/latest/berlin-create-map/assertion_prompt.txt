@@ -20,8 +20,8 @@ Rules:
 
 Assertions:
 [
-  "Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.",
-  "Agent used giskill to upload the query result to Dekart and create a map.",
+  "Agent performed Dekart init check first using geosql dekart tools --json before any Dekart write/upload action.",
+  "Agent used geosql to upload the query result to Dekart and create a map.",
   "Agent returned user map URL after map creation."
 ]
 

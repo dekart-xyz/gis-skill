@@ -1,21 +1,21 @@
 {
   "assertion_results": [
     {
-      "assertion": "Agent performed Dekart init check first using giskill dekart tools --json before any Dekart write/upload action.",
+      "assertion": "Agent performed Dekart init check first using geosql dekart tools --json before any Dekart write/upload action.",
       "passed": true,
-      "evidence": "The very first two commands in the session were run in parallel: `giskill dekart tools --json` and the BigQuery INFORMATION_SCHEMA table list. The Dekart tools check returned successfully before any create_report, create_dataset, create_file, or upload-file calls were made.",
+      "evidence": "The very first two commands in the session were run in parallel: `geosql dekart tools --json` and the BigQuery INFORMATION_SCHEMA table list. The Dekart tools check returned successfully before any create_report, create_dataset, create_file, or upload-file calls were made.",
       "commands_run": [],
-      "result_snippet": "giskill dekart tools --json returned tools list including create_report, create_dataset, create_file, etc. \u2014 confirmed before any write action."
+      "result_snippet": "geosql dekart tools --json returned tools list including create_report, create_dataset, create_file, etc. \u2014 confirmed before any write action."
     },
     {
-      "assertion": "Agent used giskill to upload the query result to Dekart and create a map.",
+      "assertion": "Agent used geosql to upload the query result to Dekart and create a map.",
       "passed": true,
-      "evidence": "Agent ran: (1) giskill dekart call --name create_report, (2) giskill dekart call --name create_dataset, (3) giskill dekart call --name create_file, (4) giskill dekart upload-file --file /tmp/berlin_admin.csv. Upload completed with status='completed', size=661572 bytes.",
+      "evidence": "Agent ran: (1) geosql dekart call --name create_report, (2) geosql dekart call --name create_dataset, (3) geosql dekart call --name create_file, (4) geosql dekart upload-file --file /tmp/berlin_admin.csv. Upload completed with status='completed', size=661572 bytes.",
       "commands_run": [
-        "giskill dekart call --name create_report --args '{}' --json",
-        "giskill dekart call --name create_dataset --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json",
-        "giskill dekart call --name create_file --args '{\"dataset_id\": \"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\"}' --json",
-        "giskill dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json"
+        "geosql dekart call --name create_report --args '{}' --json",
+        "geosql dekart call --name create_dataset --args '{\"report_id\": \"bed67dd6-9ed7-4c4e-86aa-5553b5cac78e\"}' --json",
+        "geosql dekart call --name create_file --args '{\"dataset_id\": \"6f6e5705-3d6e-42fa-8145-1b3c90b12da8\"}' --json",
+        "geosql dekart upload-file --file /tmp/berlin_admin.csv --file-id 6e379e96-7501-402a-813a-285c8377b7af --name berlin_admin_boundaries.csv --mime-type text/csv --json"
       ],
       "result_snippet": "{\"complete\": {\"file_id\": \"6e379e96-7501-402a-813a-285c8377b7af\", \"status\": \"completed\", \"size\": \"661572\"}}"
     },
