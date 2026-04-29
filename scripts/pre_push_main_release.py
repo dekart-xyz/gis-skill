@@ -161,7 +161,7 @@ def main():
 
     # 4) Abort this push so next push includes new commits
     mark_pending_push(current_head_sha())
-    print("[pre-push] release commits created. Re-run 'git push' to push the new commits.")
+    print("[pre-push] release commits created. Push is intentionally stopped because new release commits were created. Run `git push` once more, or use `./scripts/release_and_push.sh` for one command.")
     return 1
 
 

@@ -2,6 +2,8 @@
 
 Claude/Codex geospatial SQL skill for data scientists and analysts working with geospatial data on BigQuery and Snowflake.
 
+![GeoSQL demo](assets/geosqldemo.gif)
+
 Describe what you want geographically, and skill writes and runs SQL against free map datasets (Overture Maps) in **BigQuery or Snowflake**, checks the cost, validates the answer, and (if you ask) shows you the map — without surprise bills or hand-waved results.
 
 Example questions it handles well:
@@ -12,6 +14,7 @@ Example questions it handles well:
 - "Aggregate restaurant density in NYC by H3 cell"
 
 It works with any private GEOGRAPHY/GEOMETRY dataset too.
+
 
 ## Install (Claude/Codex)
 
