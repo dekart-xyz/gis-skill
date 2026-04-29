@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 SKILL_BUILDER = ROOT / "scripts" / "build_skill_package.py"
+PENDING_PUSH_MARKER = ROOT / ".git" / "geosql_release_pending_push"
 
 
 def run(cmd, check=True, capture=False):
@@ -69,16 +70,50 @@ def bump_minor_version():
     return new_version
 
 
+def read_version():
+    text = PYPROJECT.read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"(\d+\.\d+\.\d+)"\s*$', text, re.MULTILINE)
+    if not match:
+        raise RuntimeError("Could not read [project].version from pyproject.toml")
+    return match.group(1)
+
+
 def current_branch():
     return git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
 
 
+def current_head_sha():
+    return git_output(["git", "rev-parse", "HEAD"])
+
+
+def pending_push_head():
+    if not PENDING_PUSH_MARKER.exists():
+        return ""
+    return PENDING_PUSH_MARKER.read_text(encoding="utf-8").strip()
+
+
+def mark_pending_push(head_sha):
+    PENDING_PUSH_MARKER.write_text(f"{head_sha}\n", encoding="utf-8")
+
+
+def clear_pending_push():
+    if PENDING_PUSH_MARKER.exists():
+        PENDING_PUSH_MARKER.unlink()
+
+
 def publish_to_pypi():
     run([sys.executable, "-m", "pip", "install", "--quiet", "--upgrade", "build", "twine"])
+    # Ensure we only upload fresh artifacts for the current version.
+    dist_dir = ROOT / "dist"
+    if dist_dir.exists():
+        for path in dist_dir.glob("*"):
+            if path.is_file():
+                path.unlink()
     run([sys.executable, "-m", "build"])
-    dist_files = sorted(glob.glob(str(ROOT / "dist" / "*")))
+    version = read_version()
+    dist_files = sorted(glob.glob(str(dist_dir / f"geosql-{version}*")))
     if not dist_files:
-        raise RuntimeError("No dist artifacts found after build")
+        raise RuntimeError(f"No dist artifacts found for geosql-{version}")
     token = (os.environ.get("PYPI_API_TOKEN") or "").strip()
     cmd = [sys.executable, "-m", "twine", "upload", *dist_files]
     if token:
@@ -94,6 +129,17 @@ def main():
 
     if branch != "main":
         return 0
+
+    # After a successful release run, the hook blocks one push on purpose.
+    # Allow the immediate retry push to pass through unchanged.
+    pending = pending_push_head()
+    head = current_head_sha()
+    if pending and pending == head:
+        clear_pending_push()
+        print("[pre-push] release already prepared for current HEAD; allowing push.")
+        return 0
+    if pending and pending != head:
+        clear_pending_push()
 
     print("[pre-push] main branch detected: running release steps...")
 
@@ -114,6 +160,7 @@ def main():
     print("[pre-push] published to PyPI")
 
     # 4) Abort this push so next push includes new commits
+    mark_pending_push(current_head_sha())
     print("[pre-push] release commits created. Re-run 'git push' to push the new commits.")
     return 1
 
