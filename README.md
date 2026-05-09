@@ -27,7 +27,7 @@ It works with any private GEOGRAPHY/GEOMETRY dataset too.
 In Claude Code (recommended):
 
 ```
-/plugin marketplace add dekart/geosql
+/plugin marketplace add dekart-xyz/geosql
 /plugin install geosql
 ```
 
@@ -41,7 +41,7 @@ geosql
 With Node.js:
 
 ```bash
-npx skills add dekart/geosql
+npx skills add dekart-xyz/geosql
 ```
 
 Then type `/dekart:geosql` in your agent's prompt to use the skill.
