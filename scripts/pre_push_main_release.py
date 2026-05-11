@@ -20,7 +20,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
-PLUGIN_MANIFEST = ROOT / ".claude-plugin" / "plugin.json"
 MARKETPLACE_MANIFEST = ROOT / ".claude-plugin" / "marketplace.json"
 SKILL_BUILDER = ROOT / "scripts" / "build_skill_package.py"
 PENDING_PUSH_MARKER = ROOT / ".git" / "geosql_release_pending_push"
@@ -82,15 +81,8 @@ def read_version():
 
 
 def sync_manifest_versions(version):
-    """Sync plugin/marketplace manifest versions to package version."""
+    """Sync marketplace manifest versions to package version."""
     changed = []
-
-    if PLUGIN_MANIFEST.exists():
-        data = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
-        if data.get("version") != version:
-            data["version"] = version
-            PLUGIN_MANIFEST.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-            changed.append(str(PLUGIN_MANIFEST.relative_to(ROOT)))
 
     if MARKETPLACE_MANIFEST.exists():
         data = json.loads(MARKETPLACE_MANIFEST.read_text(encoding="utf-8"))
@@ -194,11 +186,11 @@ def main():
     if skill_committed:
         print("[pre-push] committed updated geosql.skill")
 
-    # 2) Bump minor version, sync manifests, and commit separately
+    # 2) Bump minor version, sync marketplace manifest, and commit separately
     new_version = bump_minor_version()
     sync_manifest_versions(new_version)
     version_committed = commit_if_needed(
-        ["pyproject.toml", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"],
+        ["pyproject.toml", ".claude-plugin/marketplace.json"],
         f"chore(release): bump version to {new_version}",
     )
     if version_committed:

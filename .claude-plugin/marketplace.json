@@ -9,7 +9,9 @@
     {
       "name": "geosql",
       "source": "./",
-      "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
+      "description": "Geospatial SQL skill for BigQuery and Snowflake. Discovers Overture Maps and warehouse schemas, writes cost-safe SQL with mandatory dry-run, validates results, and optionally renders an interactive map.",
+      "category": "location",
+      "homepage": "https://github.com/dekart-xyz/geosql",
       "version": "0.14.0"
     }
   ]
