@@ -98,7 +98,7 @@ def sync_manifest_versions(version):
         if isinstance(plugins, list):
             updated = False
             for plugin in plugins:
-                if isinstance(plugin, dict) and plugin.get("name") == "dekart":
+                if isinstance(plugin, dict) and plugin.get("name") == "geosql":
                     if plugin.get("version") != version:
                         plugin["version"] = version
                         updated = True

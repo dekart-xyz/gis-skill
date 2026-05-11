@@ -7,7 +7,7 @@
   },
   "plugins": [
     {
-      "name": "dekart",
+      "name": "geosql",
       "source": "./",
       "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
       "version": "0.13.0"

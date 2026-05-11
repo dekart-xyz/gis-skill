@@ -1,5 +1,5 @@
 {
-  "name": "dekart",
+  "name": "geosql",
   "version": "0.13.0",
   "description": "Build cost-safe Geospatial SQL for BigQuery or Snowflake and render results on an interactive map.",
   "author": {
@@ -16,7 +16,6 @@
     "gis",
     "sql",
     "overture-maps",
-    "h3",
-    "dekart"
+    "h3"
   ]
 }
