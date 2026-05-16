@@ -8,14 +8,20 @@ description: Build cost-safe Geospatial SQL for BigQuery or Snowflake and render
 ## Tools/CLI
 
 This skill uses the following CLIs:
-- `bq` for BigQuery SQL execution and cost control.
-- `snow` for Snowflake SQL execution (`snow sql`).
-- `dekart` for rendering maps. Used ONLY when the user explicitly asks for a map. Never run map flow for SQL-only questions.
+- `dekart` for running SQLs and rendering maps
+- `bq` to run BigQuery SQL when `dekart` BigQuery integration is not available.
+- `snow` to run Snowflake SQL when `dekart` Snowflake integration is not available.
 
 Before using CLIs, verify availability if it was not done before:
 
 ```bash
 for c in bq snow dekart; do command -v $c >/dev/null && echo $c=ok || echo $c=missing; done
+```
+
+If `dekart` is available, check available connectors:
+
+```bash
+dekart call --name list_connections --args '{}' --json
 ```
 
 ## Required Workflow
@@ -174,7 +180,9 @@ LIMIT 1000;
 
 Do NOT present the query to the user without validating it first.
 
-1. Dry run (BigQuery only) `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` to check estimated bytes.
+1. Dry run (BigQuery only) to check estimated bytes.
+   * If using `dekart` use Dekart `update_query` to dry-run result (`dry_run.valid`, `dry_run.estimated_bytes_processed`) for validation.
+     If using `bq` CLI, run the query with `bq query --use_legacy_sql=false --dry_run --format=json '<SQL>'` and parse the JSON output for `totalBytesProcessed`.
    * If dry run fails: read the bq error output. Common causes: string vs int type mismatch, missing backtick escaping, reserved keyword collision.
    * If estimated bytes exceed budget: do NOT execute. Instead, rewrite the query to be cheaper (tighter bbox, more filters, lower H3 resolution, etc) and validate again.
 2. Validate row count: execute `COUNT(*)` (or equivalent) to confirm count is reasonable. If count is zero, debug before presenting.
@@ -193,11 +201,13 @@ Iterate. Fix issues in small steps. Do not run broad or full extraction queries 
 
 Maps catch what rows cannot: misplaced points, duplicates, coverage gaps.
 
-If user did not ask for map, answer first (SQL + results + cost), then propose map validation as a separate "Next step" section with 2-3 sentences on what to look for and which failure modes rows cannot catch.
+If user has `dekart` with configured warehouse connection, create and validate map by default.
 
-Do not start map workflow without user request.
+If `dekart` is not installed, init or has no connectors but `bq` or `snow` CLIs available, then answer first (SQL + results + cost), then propose creating a map as "Next step" section with 2-3 explaining map benefits for this specific question.
 
 Do not claim visual insights until the styled snapshot is rendered and inspected; never dress row-derived facts as map observations.
+
+Make sure maps are beautifully styled and communicate a clear insight. Always add a map title, dataset name, and layer names, and optionally include a README when the user asks for insight.
 
 If dekart CLI is missing, ask the user to `pip install dekart-cli && dekart init` and wait until the user confirms with `ready`, `done`, or `ok`. If unauthed, ask to run `dekart init`.
 
@@ -247,7 +257,10 @@ Guardrails:
 
 ## Map Flow with `dekart` CLI
 
-Use this to execute the map validation step from SQL query output. Use only if dekart CLI is available.
+Use this when dekart CLI is available.
+
+- If dekart has no warehouse connectors configured, use it to upload CSV results from `bq` or `snow` and create a map that way.
+- If dekart has warehouse connectors, use `dekart call` to run SQL and create map directly from query results.
 
 ### Artifact model
 
@@ -255,10 +268,27 @@ The CLI stores map artifacts in this hierarchy:
 - `report`: top-level map container.
 - `dataset`: one data layer slot inside a report.
 - `file`: uploaded data artifact attached to a dataset.
+- `query`: SQL attached to a dataset/connection and executed asynchronously.
+- `job`: execution instance for a query (run_query -> check_job_status).
 
-Control plane: create `report` -> create `dataset` -> create `file`. The CLI provides an upload wrapper that performs multipart upload and completion.
+Control plane depends on execution mode:
+- Query mode (connectors available): create `report` -> create `dataset` -> create `query`, then run async query jobs.
+- File-upload mode (no connectors): create `report` -> create `dataset` -> create `file`, then upload CSV and complete multipart flow.
 
-### Workflow rules
+### Mode selection (required)
+
+Choose exactly one flow after gate/confirmation:
+
+1. Query mode:
+   - Use when `list_connections` shows at least one usable warehouse connector.
+   - Execution path: `report -> dataset -> query -> run_query -> check_job_status`.
+2. File-upload mode:
+   - Use when no usable connector is available.
+   - Execution path: `report -> dataset -> file -> upload-file`.
+
+Do not run both flows for the same task unless user explicitly asks.
+
+### File-upload mode (no connectors)
 
 1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`, `dekart upload-file --help`.
 2. Gate: enter this flow ONLY after the analytical answer is delivered AND the user confirms the map step with `ready`, `done`, or `ok`. If user declines or is silent, stop; do not export CSV, do not create reports.
@@ -289,6 +319,36 @@ Control plane: create `report` -> create `dataset` -> create `file`. The CLI pro
    - inspect the saved local PNG output from that command; do not use direct PNG URLs/links
    - verify snapshot render reflects expected area/content before finalizing
 10. Return resulting IDs and URL in final response.
+
+
+### Query mode (connectors available)
+
+1. Use CLI help for current command behavior: `dekart --help`, `dekart tools --help`, `dekart call --help`.
+2. Gate: use this flow by default when Dekart is installed and `list_connections` shows at least one usable connector; do not use this flow when Dekart is missing or no usable connector exists.
+3. Once gated-in, confirm available connections:
+   - `dekart call --name list_connections --args '{}' --json`
+   - pick a usable connection for the target warehouse/entity.
+4. Discover MCP tools and schemas from `dekart tools`.
+5. Resolve required tool names from schema, not hardcoded names:
+   - report creation tool: creates a report container
+   - dataset creation tool: requires `report_id`
+   - query creation tool: requires `dataset_id` + `connection_id`
+   - query update tool: requires `query_id` + `query_text`
+   - query run tool: requires `query_id`
+   - job status tool: requires `job_id`
+6. Execute control plane in this exact order: report -> dataset -> query.
+7. Update SQL via query update tool:
+   - SQL must include geospatial output aliased exactly as lowercase `"geometry"`.
+8. Run query asynchronously via run tool and capture `job_id`.
+9. Poll job status with `check_job_status` until terminal state:
+   - success: `JOB_STATUS_DONE` and empty `job_error`
+   - failure: non-empty `job_error` (stop and report error)
+10. Validate map output with snapshot after successful job completion:
+   - run: `dekart snapshot --report-id <report_id> --out /tmp/<report_id>-snapshot.png`
+   - inspect saved local PNG output; do not use direct PNG URLs/links
+   - verify snapshot reflects expected area/content before finalizing
+11. Return resulting IDs and URL in final response:
+   - `report_id`, `dataset_id`, `query_id`, `job_id`, terminal status, and report URL/path.
 
 ### Failure handling
 * Do not run `dekart init`, `dekart config` on your own. Ask user to re-run `dekart init` if needed.

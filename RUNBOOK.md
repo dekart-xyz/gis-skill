@@ -98,3 +98,30 @@ Recommended push flow on `main`:
 git push         # hook runs, creates commits, publishes, exits non-zero intentionally
 git push         # push new local commits
 ```
+
+## 7) Run Claude in isolated Dekart shell (no `bq`/`snow`)
+
+From repo root:
+
+```bash
+cd /Users/vladi/dev/geosql
+make shell-dekart-claude
+claude --dangerously-skip-permissions
+```
+
+Inside Claude:
+
+1. If prompted with `Not logged in`, run `/login` first.
+2. Select model via `/model` (pick `Opus 4.7` from available models).
+
+Do not hardcode model id in this flow because model names/availability can vary by account and release.
+
+If your local Claude build uses different bypass flag names, check:
+
+```bash
+claude --help | rg -i "model|permission|bypass|danger"
+```
+
+Then run the equivalent bypass-permissions flag supported by your version.
+
+Use bypass mode only in trusted local repositories.
